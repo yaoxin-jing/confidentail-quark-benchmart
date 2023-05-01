@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: quark-pod-mongo1
+spec:
+  runtimeClassName: quark
+  volumes:
+    - name: my-mongo-persistent-storage
+      persistentVolumeClaim:
+        claimName: my-mongo-pvc
+  containers:
+  - name: my-mongo
+    image: mongo:3.6
+    env:
+    - name: APPLICATION_NAME
+      value: "mongod"
+    - name: SECRET_MANAGER_IP
+      value: "10.206.133.76:8000"
+    - name: CMD_ENV_BASED_SECRETS_PATH
+      value: "quark_mongo/resource/envCmd"
+    - name: FILE_BASED_SECRETS_PATH
+      value: "quark_mongo/resource/mongodConf,quark_mongo/resource/rootCaPem,quark_mongo/resource/mongodbPem"
+    - name: SHILED_POLICY_PATH
+      value: "quark_mongo/resource/policy"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 100Mi
+      limits:
+        memory: "200Mi"
+    volumeMounts:
+      - name: my-mongo-persistent-storage
+        mountPath: /data/db
