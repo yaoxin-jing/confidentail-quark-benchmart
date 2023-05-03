@@ -1,13 +1,19 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: quark-pod-mongo1
+  name: quark-pod-mongo
 spec:
   runtimeClassName: quark
   volumes:
     - name: my-mongo-persistent-storage
       persistentVolumeClaim:
         claimName: my-mongo-pvc
+    - name: my-mongo-config
+      configMap:
+        name: my-mongo-config
+    - name: my-mongo-ssl-certs
+      secret:
+        secretName: my-mongo-ssl-certs
   containers:
   - name: my-mongo
     image: mongo:3.6
@@ -31,3 +37,9 @@ spec:
     volumeMounts:
       - name: my-mongo-persistent-storage
         mountPath: /data/db
+      # - name: my-mongo-config
+      #   mountPath: /etc/mongo
+      #   readOnly: true
+      # - name: my-mongo-ssl-certs
+      #   mountPath: /etc/ssl
+      #   readOnly: true

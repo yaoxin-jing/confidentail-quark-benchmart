@@ -2,16 +2,47 @@
 use futures::{StreamExt, TryStreamExt};
 use k8s_openapi::api::core::v1::Pod;
 use tracing::*;
-use anyhow::{Context, bail};
+use anyhow::{Context, Ok};
 use kube::{
     api::{
-        Api, DynamicObject, GroupVersionKind, DeleteParams, PostParams, ResourceExt, WatchEvent, WatchParams,PatchParams
-        , Patch},
-    runtime::{watcher, WatchStreamExt},
-    discovery::{ApiCapabilities, ApiResource, Discovery, Scope},
+        Api, DeleteParams, PostParams, ResourceExt, WatchEvent, WatchParams},
     Client,
 };
-use tokio::{io::AsyncWriteExt, time::sleep_until};
+use tokio::process::Command;
+
+
+// pub fn time_before() -> i64 {
+//     let rax: u64;
+//     let rdx: u64;
+
+//     unsafe {
+//         std::arch::asm!("
+//             lfence
+//             rdtsc
+//             ",
+//             out("rax") rax,
+//             out("rdx") rdx
+//         )
+//     };
+
+//     return rax as i64 | ((rdx as i64) << 32);
+// }
+
+async fn test_exec_cmd(loop_times: i32, pod_name: String, file_path: std::path::PathBuf) ->  anyhow::Result<()>{
+
+        // Compile code.
+        let mut child = Command::new("bash")
+        .args([
+            "-c",
+            "echo 'Hello'; sleep 3s; echo 'World'"
+        ])
+        .output()
+        .await.expect("failed to execute process");
+
+    Ok(())
+
+
+}
 
 
 
@@ -24,6 +55,13 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
     let fileds_selector = format!("metadata.name={}", pod_name);
 
     let mut i = 0;
+
+    let delete_params = DeleteParams::default().grace_period(0);
+    // Delete it
+    // pods.delete(&pod_name, &delete_params)
+    //     .await?
+    //     .map_right(|pdel| {
+    //     });
 
     while i < loop_times {
         info!("loop {}, pod_name {:?}", i, pod_name);
@@ -47,7 +85,7 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
             }
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+        // tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         let delete_params = DeleteParams::default().grace_period(0);
         // Delete it
         pods.delete(&pod_name, &delete_params)
@@ -80,9 +118,10 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let path = std::path::PathBuf::from("/home/yaoxin/demo/benchmark/mongodb.yaml");
-    let res = test_app_lauch_time(1000, "quark-pod-mongo1".to_string(), path).await?;
-    assert!(res == 1000);
+    let mongo_path = std::path::PathBuf::from("/home/yaoxin/demo/benchmark/mongodb.yaml");
+    let nginx_path = std::path::PathBuf::from("/home/yaoxin/demo/benchmark/nginx.yaml");
+    let res = test_app_lauch_time(150, "quark-pod-mongo".to_string(), mongo_path).await?;
+    assert!(res == 150);
 
     println!("test finished {}", res);
     Ok(())
