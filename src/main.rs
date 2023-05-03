@@ -47,7 +47,7 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
             }
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+        // tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         let delete_params = DeleteParams::default().grace_period(0);
         // Delete it
         pods.delete(&pod_name, &delete_params)
@@ -80,9 +80,9 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let path = std::path::PathBuf::from("/home/yaoxin/demo/benchmark/mongodb.yaml");
-    let res = test_app_lauch_time(1000, "quark-pod-mongo1".to_string(), path).await?;
-    assert!(res == 1000);
+    let path = std::path::PathBuf::from("/home/yaoxin/test/mongo.yaml");
+    let res = test_app_lauch_time(10, "quark-pod-mongo".to_string(), path).await?;
+    assert!(res == 10);
 
     println!("test finished {}", res);
     Ok(())
