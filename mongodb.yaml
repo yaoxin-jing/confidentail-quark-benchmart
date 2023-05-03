@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: quark-pod-mongo
+  name: quark-pod-mongo1
 spec:
   runtimeClassName: quark
   volumes:
