@@ -118,10 +118,16 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
+<<<<<<< HEAD
     let mongo_path = std::path::PathBuf::from("/home/yaoxin/demo/benchmark/mongodb.yaml");
     let nginx_path = std::path::PathBuf::from("/home/yaoxin/demo/benchmark/nginx.yaml");
     let res = test_app_lauch_time(150, "quark-pod-mongo".to_string(), mongo_path).await?;
     assert!(res == 150);
+=======
+    let path = std::path::PathBuf::from("/home/yaoxin/test/mongo.yaml");
+    let res = test_app_lauch_time(10, "quark-pod-mongo".to_string(), path).await?;
+    assert!(res == 10);
+>>>>>>> 7a260489b560675bd9301c97cdd56a8d2768955c
 
     println!("test finished {}", res);
     Ok(())
