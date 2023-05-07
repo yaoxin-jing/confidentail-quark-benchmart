@@ -3,15 +3,22 @@ kind: Pod
 metadata:
   name: redis
 spec:
+  runtimeClassName: quark
   containers:
   - name: redis
-    image: redis:5.0.4
+    image: redis:latest
     command:
       - redis-server
       # - "/redis-master/redis.conf"
     env:
     - name: MASTER
       value: "true"
+    - name: APPLICATION_NAME
+      value: "redis-server"
+    - name: SECRET_MANAGER_IP
+      value: "10.206.133.76:8000"
+    - name: SHILED_POLICY_PATH
+      value: "quark_mongo/resource/policy"
     ports:
     - containerPort: 6379
     resources:
