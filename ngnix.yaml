@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  runtimeClassName: quark
+  volumes:
+  - name: mysite-configs
+    configMap:
+      name: nginx-config
+  - name: nginx-secret
+    secret:
+      secretName: nginx-secret
+  containers:
+  - name: nginx
+    image: nginx
+    ports:
+      - containerPort: 80
+    env:
+      - name: APPLICATION_NAME
+        value: "nginx"
+      - name: SECRET_MANAGER_IP
+        value: "10.221.117.198:8000"
+      # - name: CMD_ENV_BASED_SECRETS_PATH
+      #   value: "quark_nginx/nginx_resource/envCmd"
+      # - name: FILE_BASED_SECRETS_PATH
+      #   value: "quark_nginx/nginx_resource/mongodConf,quark_nginx/nginx_resource/rootCaPem,quark_nginx/nginx_resource/mongodbPem"
+      - name: SHILED_POLICY_PATH
+        value: "quark_nginx/nginx_resource/policy"
+    volumeMounts:
+      - name: mysite-configs
+        mountPath: /etc/nginx/conf.d
+      - name: nginx-secret
+        mountPath:  /usr/share/nginx

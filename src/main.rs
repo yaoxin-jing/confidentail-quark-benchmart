@@ -1,10 +1,13 @@
 
+mod redis;
+mod nginx;
+
+
 #[macro_use]
 extern crate lazy_static;
 
 #[macro_use] 
 extern crate log;
-use futures::lock::MutexGuard;
 use k8s_openapi::api::core::v1::Pod;
 use kube::{
     api::{
@@ -12,7 +15,7 @@ use kube::{
     runtime::wait::{await_condition, conditions::{is_pod_running, is_deleted}},
     Client,
 };
-use std::{process::{Command, Output}, collections::HashSet};
+use std::{process::Command, collections::HashSet};
 use anyhow::Context;
 use std::time::SystemTime;
 use chrono::{offset::Utc, DateTime};
@@ -23,6 +26,17 @@ use simplelog::*;
 use std::str::FromStr;
 use std::time::Instant;
 use core::result::Result::Ok;
+use statrs::distribution::Uniform;
+use statrs::statistics::Median;
+use statrs::statistics::Statistics;
+
+use crate::nginx::NginxStatistic;
+use crate::nginx::collect_nginx_statistics;
+use crate::nginx::calculate_nginx_result;
+
+use crate::redis::{RedisStatistic, calculate_redis_result, run_redis_benchmark, collect_redis_statistics};
+use crate::nginx::run_nginx_benchmark;
+
 
 const APPLICATON_START: &str = "application start";
 const APPLICATON_EXIT: &str = "application exit";
@@ -42,9 +56,9 @@ const SECRET_INJECTION_END: &str = "secret injection finished";
 
 
 lazy_static! {
-    static ref Global_Redis_Statistics_Keeper: Mutex<RedisPodStatisticKeeper> = Mutex::new(RedisPodStatisticKeeper::default());
-    static ref lib_measured_before_app_launched: Mutex<HashSet<String>> = Mutex::new(HashSet::default());
-    static ref lib_measured_during_runtime: Mutex<HashSet<String>> = Mutex::new(HashSet::default());
+    pub static ref GLOBAL_STATISTICS_KEEPER: Mutex<StatisticKeeper> = Mutex::new(StatisticKeeper::default());
+    static ref LIB_MEASURED_BEFORE_APP_LAUNCHED_KEEPER: Mutex<HashSet<String>> = Mutex::new(HashSet::default());
+    static ref LIB_MEASURED_DURING_RUNTIME_KEEPER: Mutex<HashSet<String>> = Mutex::new(HashSet::default());
 }
 
 #[derive(Debug, Default)]
@@ -76,23 +90,11 @@ enum RuntimeType {
 
 
 #[derive(Debug, Default)]
-struct RedisPodStatisticKeeper {
+pub struct StatisticKeeper {
     pods_statistic: Vec<PodStatistic>,
     redis_statistics: Vec<RedisStatistic>,
+    nginx_statistics: Vec<NginxStatistic>
 }
-
-// struct RedisPodsStatistic {
-//     remote_attestation_and_provision_duration: Statistic,
-//     get_report_duration: Statistic,
-//     secret_injection_duration: Statistic,
-//     app_lanch_duration: Statistic,
-//     app_running_dution:  Statistic,
-//     measurement_in_byte_before_app_launch: Statistic,
-//     runtime_meausrement_in_bytes: Statistic,
-//     // How long did the whole pod launch, app running, pod quit take
-//     total_period: Statistic,
-//     workload_statistic: RedisGloableStatistic
-// }
 
 
 #[derive(Debug, Default)]
@@ -105,137 +107,6 @@ struct OurStatistic {
 }
 
 
-// struct RedisGloableStatistic {
-//     duration_mean: u128,
-//     duration_min: u128,
-//     duration_max: u128,
-//     duration_std_deviation: f64,
-// }
-
-
-
-const PING_INLINE: &str = "PING_INLINE";
-const PING_BULK: &str = "PING_BULK";
-const SET: &str = "SET";
-const GET: &str = "GET";
-const INCR: &str = "INCR";
-const LPUSH: &str = "LPUSH";
-const RPUSH: &str = "RPUSH";
-const LPOP: &str = "LPOP";
-const RPOP: &str = "RPOP";
-const SADD: &str = "SADD";
-const HSET: &str = "HSET";
-const SPOP: &str = "SPOP";
-const MSET: &str = "MSET (10 keys)";
-
-#[derive(Debug, Default)]
-struct RedisStatistic {
-    ping_inline: f64,
-    ping_bulk: f64,
-    set: f64,
-    get: f64,
-    incr:  f64,
-    lpush: f64,
-    rpush: f64,
-    lpop: f64,
-    rpop: f64,
-    sadd: f64,
-    hset: f64,
-    spop: f64,
-    mset: f64,
-    geo_mean: f64,
-}
-
-
-impl RedisStatistic {
-    fn cal_geometric_mean (&mut self) -> anyhow::Result<()> {
-        let product = self.ping_inline * self.ping_bulk * self.set * self.get * self.incr * self.lpush * self.rpush * self.lpop * self.rpop * self.sadd * self.hset * self.spop * self.mset;
-        assert!(product > 0.0);
-        let root = 1.0 / 13.0;
-        self.geo_mean = f64::powf(product, root);
-        Ok(())
-    }
-}
-
-
-
-fn collect_redis_statistics(redis_output : Output) -> anyhow::Result<RedisStatistic> {
-
-    let res = String::from_utf8_lossy(&redis_output.stdout);
-    let mut redis_statistic = RedisStatistic::default();
-
-    let mut redis_statistic_inited = false;
-    for line in res.lines() {
-        let values: Vec<&str> = line.split(",").collect();
-        let key = &values[0][1..values[0].len()-1];
-        let value = values[1][1..values[1].len()-1].parse::<f64>().unwrap();
-
-        debug!("valuse {:?} key {:?}, value {:?}", values, key, value);
-
-        if key.eq(PING_INLINE) {
-            redis_statistic.ping_inline= value;
-            redis_statistic_inited = true;
-        } else if key.eq(PING_BULK) {
-            redis_statistic.ping_bulk= value;
-        } else if key.eq(SET) {
-            redis_statistic.set= value;
-        } else if key.eq(GET) {
-            redis_statistic.get= value;
-        } else if key.eq(INCR) {
-            redis_statistic.incr= value;
-        } else if key.eq(LPUSH) {
-            redis_statistic.lpush= value;
-        } else if key.eq(RPUSH) {
-            redis_statistic.rpush= value;
-        } else if key.eq(LPOP) {
-            redis_statistic.lpop= value;
-        } else if key.eq(RPOP) {
-            redis_statistic.rpop= value;
-        } else if key.eq(SADD) {
-            redis_statistic.sadd= value;
-        } else if key.eq(HSET) {
-            redis_statistic.hset= value;
-        } else if key.eq(SPOP) {
-            redis_statistic.spop= value;
-        } else if key.eq(MSET) {
-            redis_statistic.mset= value;
-        }
-    }
-
-    if !redis_statistic_inited {
-        error!("collect_redis_statistics failed  redis output {:?}", redis_output);
-        return Err(anyhow::Error::msg("collect_redis_statistics failed"));   
-    }
-
-    redis_statistic.cal_geometric_mean().unwrap();
-
-    // info!("{:?}", redis_statistic);
-    Ok(redis_statistic)
-
-}
-
-
-async fn run_redis_benchmark(pod_ip: String) ->  anyhow::Result<Output>{
-
-    // Compile code. | grep 'per second'
-    let cmd = format!("redis-benchmark -h {} -p 6379 -n 100000 -c 20 --csv", pod_ip);
-
-    let output = Command::new("bash")
-    .args([
-        "-c",
-        &cmd
-    ])
-    .output()
-    .map_err(|e| anyhow::Error::msg(format!("run_redis_benchmark failed to run redus benchmark, get error {:?}", e)))?;
-
-    // println!("status: {}", output.status);
-    let res = String::from_utf8_lossy(&output.stdout);
-
-    debug!("stdout: {}", res);
-    // println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
-
-    Ok(output)
-}
 
 
 
@@ -257,9 +128,6 @@ async fn delete_pod(pod_name: &str) ->  anyhow::Result<()>{
 }
 
 
-use statrs::distribution::Uniform;
-use statrs::statistics::Median;
-use statrs::statistics::Statistics;
 
 fn get_statistic(data: &[f64]) -> anyhow::Result<OurStatistic> {
 
@@ -277,94 +145,9 @@ fn get_statistic(data: &[f64]) -> anyhow::Result<OurStatistic> {
     Ok(s)
 }
 
-fn calculate_redis_result(statistic_keeper: &std::sync::MutexGuard<RedisPodStatisticKeeper>) {
 
 
-    let mut ping_inline: Vec<f64> = Vec::new();
-    let mut ping_bulk: Vec<f64> = Vec::new();
-    let mut set: Vec<f64> = Vec::new();
-
-    let mut get: Vec<f64> = Vec::new();
-    let mut incr: Vec<f64> = Vec::new();
-
-    let mut lpush: Vec<f64> = Vec::new();
-    let mut rpush: Vec<f64> = Vec::new();
-    let mut lpop: Vec<f64> = Vec::new();
-
-    let mut rpop: Vec<f64> = Vec::new();
-    let mut sadd: Vec<f64> = Vec::new();
-    let mut hset: Vec<f64> = Vec::new();
-
-    let mut spop: Vec<f64> = Vec::new();
-    let mut mset: Vec<f64> = Vec::new();
-    let mut geo_mean: Vec<f64> = Vec::new();
-
-
-    
-    for item in &statistic_keeper.redis_statistics {
-        ping_inline.push(item.ping_inline);
-        ping_bulk.push(item.ping_bulk);
-        set.push(item.set);
-
-        get.push(item.get);
-        incr.push(item.incr);
-
-        lpush.push(item.lpush);
-        rpush.push(item.rpush);
-        lpop.push(item.lpop);
-
-        
-        rpop.push(item.rpop);
-        sadd.push(item.sadd);
-        hset.push(item.hset);
-
-        spop.push(item.spop);
-        mset.push(item.mset);
-        geo_mean.push(item.geo_mean);
-    }
-
-    let ping_inline_statistic = get_statistic(&ping_inline).unwrap();
-    let ping_bulk_statistic = get_statistic(&ping_bulk).unwrap();
-    let set_statistic = get_statistic(&set).unwrap();
-
-    let get_s = get_statistic(&get).unwrap();
-    let incr_statistic = get_statistic(&incr).unwrap();
-
-    let lpush_statistic = get_statistic(&lpush).unwrap();
-    let rpush_statistic = get_statistic(&rpush).unwrap();
-    let lpop_statistic = get_statistic(&lpop).unwrap();
-
-    let rpop_statistic = get_statistic(&rpop).unwrap();
-    let sadd_statistic = get_statistic(&sadd).unwrap();
-    let hset_statistic = get_statistic(&hset).unwrap();
-
-    let spop_statistic = get_statistic(&spop).unwrap();
-    let mset_statistic = get_statistic(&mset).unwrap();
-    let geo_mean_statistic = get_statistic(&geo_mean).unwrap();
-
-
-    info!("ping_inline_statistic : {:?}", ping_inline_statistic);
-    info!("ping_bulk_statistic : {:?}", ping_bulk_statistic);
-    info!("set_statistic : {:?}", set_statistic);
-
-    info!("get_s : {:?}", get_s);
-    info!("incr_statistic : {:?}", incr_statistic);
-
-    info!("lpush_statistic : {:?}", lpush_statistic);
-    info!("rpush_statistic : {:?}", rpush_statistic);
-    info!("lpop_statistic : {:?}", lpop_statistic);
-
-    info!("rpop_statistic : {:?}", rpop_statistic);
-    info!("sadd_statistic : {:?}", sadd_statistic);
-    info!("hset_statistic : {:?}", hset_statistic);
-
-    info!("spop_statistic : {:?}", spop_statistic);
-    info!("mset_statistic : {:?}", mset_statistic);
-    info!("geo_mean_statistic : {:?}", geo_mean_statistic);
-
-}
-
-fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<RedisPodStatisticKeeper>, workload_type: WorkloadType) -> anyhow::Result<()> {
+fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<StatisticKeeper>, workload_type: WorkloadType) -> anyhow::Result<()> {
 
     let mut remote_attestation_and_provision_duration_in_ms: Vec<f64> = Vec::new();
     let mut get_report_duration_in_ms: Vec<f64> = Vec::new();
@@ -411,6 +194,7 @@ fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<RedisPod
         },
         WorkloadType::Nginx => {
 
+            calculate_nginx_result(statistic_keeper)
         }
     }
     Ok(())
@@ -426,11 +210,12 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
 
 
 
-    let mut statistic_keeper = Global_Redis_Statistics_Keeper.lock().unwrap();
+    let mut statistic_keeper = GLOBAL_STATISTICS_KEEPER.lock().unwrap();
 
     let mut i = 0;
     while i < loop_times {
 
+        error!("====round {}===========", i);
         execute_cmd("sudo rm -f /var/log/quark/quark.log");
 
         let start = Instant::now();
@@ -454,17 +239,30 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
         }
         // Wait until the pod is running, otherwise we get 500 error.
         let running = await_condition(pods.clone(), &pod_name, is_pod_running());
-        let _ = tokio::time::timeout(std::time::Duration::from_secs(60), running).await
-            .map_err(|e| anyhow::Error::msg(format!("tokio::time::timeout(std::time::Duration::from_secs(60), running), get error {:?}", e)))?;
+        match tokio::time::timeout(std::time::Duration::from_secs(60), running).await {
+            Ok(_) => {},
+            Err(e) => {
+                pods.delete(&pod_name, &DeleteParams::default().grace_period(0))
+                .await?
+                .map_left(|pdel| {
+                    assert_eq!(pdel.name_any(), pod_name);
+                });
+                error!("tokio::time::timeout(std::time::Duration::from_secs(60), running) {:?}", e);
+                continue; 
+            }
+        }
 
 
         let pod_cluster_ip = pods.get(&pod_name).await
             .map_err(|e| anyhow::Error::msg(format!("ods.get(&pod_name).await get error {:?}", e)))?
                 .status.unwrap().pod_ip.unwrap();
-        debug!("pod ip {}", pod_cluster_ip);
+        info!("pod ip {}", pod_cluster_ip);
 
 
-        let redis_output = run_redis_benchmark(pod_cluster_ip).await;
+        let output = match workload_type {
+            WorkloadType::Redis => run_redis_benchmark(pod_cluster_ip).await,
+            WorkloadType::Nginx => run_nginx_benchmark(&pod_cluster_ip, &pod_name).await,
+        };
 
 
         match delete_pod(&pod_name).await {
@@ -481,25 +279,47 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
         }
         let deleted = Instant::now();
 
-        if redis_output.is_err() {
+        if output.is_err() {
             i = i + 1;
             continue;
         }
 
-        let redis_statistic = match collect_redis_statistics(redis_output.unwrap()) {
-            Ok(statistic) => {
-
-                info!("redis statistic {:?}", statistic);
-                statistic
-            },
-            Err(e) => {
-                i = i + 1;
-                error!("collect_redis_statistics got error {:?}", e);
-                continue;
+        let mut redis_statistic = RedisStatistic::default();
+        let mut nginx_statistic = NginxStatistic::default();
+        
+        match workload_type {
+            WorkloadType::Redis =>  {
+                redis_statistic = match collect_redis_statistics(output.unwrap()) {
+                    Ok(statistic) => {
+        
+                        info!("redis statistic {:?}", statistic);
+                        statistic
+                    },
+                    Err(e) => {
+                        i = i + 1;
+                        error!("collect_redis_statistics got error {:?}", e);
+                        continue;
+                    }
+                };
+            }
+            WorkloadType::Nginx => {
+                // ToDo
+                nginx_statistic = match collect_nginx_statistics(output.unwrap()) {
+                    Ok(statistic) => {
+        
+                        info!("ngins statistic {:?}", statistic);
+                        statistic
+                    },
+                    Err(e) => {
+                        i = i + 1;
+                        error!("collect_nginx_statistics got error {:?}", e);
+                        continue;
+                    }
+                };
             }
         };
 
-        let quark_statistic = match parse_quark_log() {
+        let quark_statistic = match parse_quark_log(i) {
             Ok(mut statistic) => {
                 let period = (deleted - start).as_secs_f64();
                 statistic.total_period_in_s = period;
@@ -514,15 +334,28 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
             }
         };
 
+        match workload_type {
+            WorkloadType::Redis =>  {
+                statistic_keeper.redis_statistics.push(redis_statistic);
+            }
+            WorkloadType::Nginx => {
+                statistic_keeper.nginx_statistics.push(nginx_statistic);
+            }
+        };
+        
         statistic_keeper.pods_statistic.push(quark_statistic);
-        statistic_keeper.redis_statistics.push(redis_statistic);
-
 
         i = i + 1;
     }
 
-    calcaulate_statistic_result(&statistic_keeper, workload_type).unwrap();
+    error!("================== Result ==============================");
 
+    {
+        info!("libaries loaded before application is lauched {:?}", *LIB_MEASURED_BEFORE_APP_LAUNCHED_KEEPER.lock().unwrap());
+        info!("libaries loaded during runtime {:?}", *LIB_MEASURED_DURING_RUNTIME_KEEPER.lock().unwrap());
+    }
+
+    calcaulate_statistic_result(&statistic_keeper, workload_type).unwrap();
     Ok(i)    
 }
 
@@ -540,9 +373,6 @@ fn execute_cmd(cmd: &str) {
 
 }
 
-
-
-
 fn is_app_started() -> anyhow::Result<u128>{
 
     let mut app_start_time: u128 = 0;
@@ -556,6 +386,7 @@ fn is_app_started() -> anyhow::Result<u128>{
         if line.contains(APPLICATON_START) {
             app_start_time = get_log_time_stamp(&line).unwrap();
 
+            info!("line {:?}", line);
             debug!("{}", app_start_time);
         }
     }
@@ -582,7 +413,7 @@ fn get_log_time_stamp(str: &str) -> anyhow::Result<u128> {
     .map_err(|e| anyhow::Error::msg(format!("get_log_time_stamp get error {:?}", e)))
 }
 
-fn parse_quark_log() -> anyhow::Result<PodStatistic> {
+fn parse_quark_log(round: i32) -> anyhow::Result<PodStatistic> {
 
     let app_start_time_in_ns = is_app_started()?;
     let mut app_exit_time_in_ns= 0;
@@ -633,7 +464,7 @@ fn parse_quark_log() -> anyhow::Result<PodStatistic> {
             let lib_path: Vec<&str> = words[10].split("/").collect();
             let lib_name: String = lib_path[lib_path.len() - 1].strip_suffix("\"").unwrap().to_string();
 
-            let mut libs = lib_measured_before_app_launched.lock().unwrap();
+            let mut libs = LIB_MEASURED_BEFORE_APP_LAUNCHED_KEEPER.lock().unwrap();
             if !libs.contains(&lib_name) {
                 libs.insert(lib_name);
             }
@@ -644,7 +475,7 @@ fn parse_quark_log() -> anyhow::Result<PodStatistic> {
             let lib_path: Vec<&str> = words[10].split("/").collect();
             let lib_name: String = lib_path[lib_path.len() - 1].strip_suffix("\"").unwrap().to_string();
 
-            let mut libs = lib_measured_during_runtime.lock().unwrap();
+            let mut libs = LIB_MEASURED_DURING_RUNTIME_KEEPER.lock().unwrap();
             if !libs.contains(&lib_name) {
                 libs.insert(lib_name);
             }
@@ -668,9 +499,9 @@ fn parse_quark_log() -> anyhow::Result<PodStatistic> {
     // time used by  base line component to set up env for contianer  + software measurement overhead
     let app_lanch_time = app_start_time_in_ns - remote_attestation_and_provision_duration - get_report_duration;
 
-
+    error!("round {:?}", round);
     info!("app_lanch_time {}, app_running_time {}, remote_attestation_and_provision_duration {}, get_report_duration {}, secret_injection_duration {} measurement_in_byte_before_app_launch {} runtime_meausrement_in_bytes {}", 
-        app_lanch_time, app_running_time, remote_attestation_and_provision_duration, get_report_duration, secret_injection_duration, measurement_in_byte_before_app_launch, runtime_meausrement_in_bytes);
+    app_lanch_time, app_running_time, remote_attestation_and_provision_duration, get_report_duration, secret_injection_duration, measurement_in_byte_before_app_launch, runtime_meausrement_in_bytes);
 
 
     let statistic = PodStatistic {
@@ -721,17 +552,22 @@ fn setup(runtime_type: RuntimeType, workload_type: WorkloadType) -> anyhow::Resu
     Ok(())
 }
 
+
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
 
     // tracing_subscriber::fmt::init();
-    setup(RuntimeType::Cquark, WorkloadType::Redis).unwrap();
+    setup(RuntimeType::Cquark, WorkloadType::Nginx).unwrap();
 
 
     // parse_quark_log();
     
-    let path = std::path::PathBuf::from("/home/yaoxin/demo/benchmark/redis.yaml");
-    let res = test_app_lauch_time(5, "redis".to_string(), path, WorkloadType::Redis).await?;
-    assert!(res == 5);
+    // let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/redis.yaml");
+    // let res = test_app_lauch_time(1, "redis".to_string(), path, WorkloadType::Redis).await?;
+
+    let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/ngnix.yaml");
+    let res = test_app_lauch_time(10, "nginx".to_string(), path, WorkloadType::Nginx).await?;
+    assert!(res == 10);
     Ok(())
 }
