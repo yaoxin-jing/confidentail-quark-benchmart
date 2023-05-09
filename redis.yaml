@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: redis1
+  name: redis
 spec:
   runtimeClassName: quark
   containers:
@@ -19,6 +19,8 @@ spec:
       value: "10.221.117.198:8000"
     - name: SHILED_POLICY_PATH
       value: "quark_mongo/resource/policy"
+    # - name: FILE_BASED_SECRETS_PATH
+    #   value: "quark_nginx/nginx_resource/mongodConf,quark_nginx/nginx_resource/rootCaPem,quark_nginx/nginx_resource/mongodbPem"
     ports:
     - containerPort: 6379
     resources:
