@@ -398,28 +398,55 @@ fn execute_cmd(cmd: &str) {
 
 }
 
-fn is_app_started(runtime_type: &RuntimeType) -> anyhow::Result<u128>{
+fn is_application_exit(runtime_type: &RuntimeType) -> anyhow::Result<u128>{
 
-    let mut app_start_time: u128 = 0;
+    let mut app_start_exit: u128 = 0;
 
     let file = File::open("/var/log/quark/quark.log")?;
     let reader = BufReader::new(file);
     for line in reader.lines() {
         
         let line = line?;
-        if line.contains(APPLICATON_START) {
-            app_start_time = get_log_time_stamp(&line, runtime_type).unwrap();
+        if line.contains(APPLICATON_EXIT) {
+            app_start_exit = get_log_time_stamp(&line, runtime_type).unwrap();
 
             info!("line {:?}", line);
-            debug!("{}", app_start_time);
+            debug!("{}", app_start_exit);
         }
     }
 
-    if app_start_time == 0 {
+    if app_start_exit == 0 {
         return Err(anyhow::Error::msg("app start failed"));
     }
 
-    Ok(app_start_time)
+    Ok(app_start_exit)
+
+
+}
+
+
+fn is_sandbox_exit (runtime_type: &RuntimeType) -> anyhow::Result<u128>{
+
+    let mut sandbox_exit_time: u128 = 0;
+
+    let file = File::open("/var/log/quark/quark.log")?;
+    let reader = BufReader::new(file);
+    for line in reader.lines() {
+        
+        let line = line?;
+        if line.contains(SANDBOX_EXIT) {
+            sandbox_exit_time = get_log_time_stamp(&line, runtime_type).unwrap();
+
+            info!("line {:?}", line);
+            debug!("{}", sandbox_exit_time);
+        }
+    }
+
+    if sandbox_exit_time == 0 {
+        return Err(anyhow::Error::msg("app start failed"));
+    }
+
+    Ok(sandbox_exit_time)
 
 
 }
@@ -448,8 +475,8 @@ fn get_log_time_stamp(str: &str, runtime_type: &RuntimeType) -> anyhow::Result<u
 
 fn parse_quark_log(round: i32, runtime_type: &RuntimeType) -> anyhow::Result<PodStatistic> {
 
-    let app_start_time_in_ns = is_app_started(runtime_type)?;
-    let mut app_exit_time_in_ns= 0;
+    let mut app_start_time_in_ns = 0;
+    let app_exit_time_in_ns= is_application_exit(runtime_type)?;
     let mut runtime_meausrement_in_bytes = 0;
     let mut remote_attestation_start_in_ns = 0;
     let mut remote_attestation_end_in_ns = 0;
@@ -461,7 +488,7 @@ fn parse_quark_log(round: i32, runtime_type: &RuntimeType) -> anyhow::Result<Pod
     let mut secret_injection_end_in_ns = 0;
 
     let mut sandbox_start_time_in_ns = 0;
-    let mut sandbox_exit_time_in_ns = 0;
+    let sandbox_exit_time_in_ns = is_sandbox_exit(runtime_type)?;
 
     let file = File::open("/var/log/quark/quark.log")?;
     let reader = BufReader::new(file);
@@ -471,18 +498,16 @@ fn parse_quark_log(round: i32, runtime_type: &RuntimeType) -> anyhow::Result<Pod
         if line.contains(SANDBOX_START) {
             sandbox_start_time_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
             debug!("sandbox_start_time_in_ns {:?}", sandbox_start_time_in_ns);
-        } else if line.contains(SANDBOX_EXIT) {
-            sandbox_exit_time_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
-            debug!("sandbox_exit_time_in_ns {:?} ", sandbox_exit_time_in_ns);
-        }  else if line.contains(APPLICATON_EXIT) {
-            app_exit_time_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
-
+        }  else if line.contains(APPLICATON_START) {
+            app_start_time_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
+            debug!("app_start_time_in_ns {:?} runtime_meausrement_in_bytes {:?}", app_exit_time_in_ns, runtime_meausrement_in_bytes);
+        } else if line.contains(APPLICATON_EXIT) {
             if runtime_type == &RuntimeType::Cquark {
                 let words: Vec<&str> = line.split_whitespace().collect();
                 runtime_meausrement_in_bytes = words[10].parse::<u128>().unwrap();
             }
-            debug!("app_exit_time {:?} runtime_meausrement_in_bytes {:?}", app_exit_time_in_ns, runtime_meausrement_in_bytes);
-        }else if line.contains(REMOTE_ATTESTATION_START) {
+            debug!("app_start_time_in_ns {:?} runtime_meausrement_in_bytes {:?}", app_exit_time_in_ns, runtime_meausrement_in_bytes);
+        } else if line.contains(REMOTE_ATTESTATION_START) {
             remote_attestation_start_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
             debug!("REMOTE_ATTESTATION_START {}", remote_attestation_start_in_ns);
         } else if line.contains(REMOTE_ATTESTATION_END) {
@@ -604,7 +629,7 @@ fn setup(runtime_type: RuntimeType, workload_type: WorkloadType) -> anyhow::Resu
 async fn main() -> anyhow::Result<()> {
 
     // tracing_subscriber::fmt::init();
-    setup(RuntimeType::Baseline, WorkloadType::Nginx).unwrap();
+    setup(RuntimeType::Cquark, WorkloadType::Nginx).unwrap();
 
 
     // parse_quark_log();
@@ -613,7 +638,7 @@ async fn main() -> anyhow::Result<()> {
     // let res = test_app_lauch_time(2, "redis".to_string(), path, WorkloadType::Redis).await?;
 
     let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/ngnix.yaml");
-    let res = test_app_lauch_time(2, "nginx".to_string(), path, WorkloadType::Nginx, RuntimeType::Baseline).await?;
-    assert!(res == 2);
+    let res = test_app_lauch_time(200, "nginx".to_string(), path, WorkloadType::Nginx, RuntimeType::Cquark).await?;
+    assert!(res == 200);
     Ok(())
 }
