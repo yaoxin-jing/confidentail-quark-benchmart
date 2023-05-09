@@ -84,7 +84,7 @@ enum WorkloadType {
     Nginx
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum RuntimeType {
     Baseline,
     Cquark,   
@@ -224,10 +224,12 @@ fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Statisti
 }
 
 
-async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::path::PathBuf, workload_type: WorkloadType) ->  anyhow::Result<i32>{
+async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::path::PathBuf, workload_type: WorkloadType, runtime_type: RuntimeType) ->  anyhow::Result<i32>{
 
     let client = Client::try_default().await?;
     let yaml = std::fs::read_to_string(&file_path).with_context(|| format!("Failed to read {}", file_path.display()))?;
+
+    info!("yaml {}", yaml);
     let p: Pod = serde_yaml::from_str(&yaml)?;
     let pods: Api<Pod> = Api::default_namespaced(client);
 
@@ -342,7 +344,7 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
             }
         };
 
-        let quark_statistic = match parse_quark_log(i) {
+        let quark_statistic = match parse_quark_log(i, &runtime_type) {
             Ok(mut statistic) => {
                 let period = (deleted - start).as_secs_f64();
                 statistic.total_period_in_s = period;
@@ -396,7 +398,7 @@ fn execute_cmd(cmd: &str) {
 
 }
 
-fn is_app_started() -> anyhow::Result<u128>{
+fn is_app_started(runtime_type: &RuntimeType) -> anyhow::Result<u128>{
 
     let mut app_start_time: u128 = 0;
 
@@ -405,9 +407,8 @@ fn is_app_started() -> anyhow::Result<u128>{
     for line in reader.lines() {
         
         let line = line?;
-
         if line.contains(APPLICATON_START) {
-            app_start_time = get_log_time_stamp(&line).unwrap();
+            app_start_time = get_log_time_stamp(&line, runtime_type).unwrap();
 
             info!("line {:?}", line);
             debug!("{}", app_start_time);
@@ -430,15 +431,24 @@ fn atoi<F: FromStr>(input: &str) -> Result<F, <F as FromStr>::Err> {
 }
 
 
-fn get_log_time_stamp(str: &str) -> anyhow::Result<u128> {
+fn get_log_time_stamp(str: &str, runtime_type: &RuntimeType) -> anyhow::Result<u128> {
     let words: Vec<&str> = str.split_whitespace().collect();
-    atoi::<u128>(words[3])
-    .map_err(|e| anyhow::Error::msg(format!("get_log_time_stamp get error {:?}", e)))
+    match runtime_type {
+        RuntimeType::Baseline => {
+            atoi::<u128>(words[2])
+            .map_err(|e| anyhow::Error::msg(format!("get_log_time_stamp get error {:?}", e)))
+        },
+        RuntimeType::Cquark =>  {
+            atoi::<u128>(words[3])
+            .map_err(|e| anyhow::Error::msg(format!("get_log_time_stamp get error {:?}", e)))
+        }
+    }
+
 }
 
-fn parse_quark_log(round: i32) -> anyhow::Result<PodStatistic> {
+fn parse_quark_log(round: i32, runtime_type: &RuntimeType) -> anyhow::Result<PodStatistic> {
 
-    let app_start_time_in_ns = is_app_started()?;
+    let app_start_time_in_ns = is_app_started(runtime_type)?;
     let mut app_exit_time_in_ns= 0;
     let mut runtime_meausrement_in_bytes = 0;
     let mut remote_attestation_start_in_ns = 0;
@@ -457,34 +467,34 @@ fn parse_quark_log(round: i32) -> anyhow::Result<PodStatistic> {
     let reader = BufReader::new(file);
 
     for line in reader.lines() {
-        
         let line = line?;
-
-
         if line.contains(SANDBOX_START) {
-            sandbox_start_time_in_ns = get_log_time_stamp(&line).unwrap();
+            sandbox_start_time_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
             debug!("sandbox_start_time_in_ns {:?}", sandbox_start_time_in_ns);
         } else if line.contains(SANDBOX_EXIT) {
-            sandbox_exit_time_in_ns = get_log_time_stamp(&line).unwrap();
+            sandbox_exit_time_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
             debug!("sandbox_exit_time_in_ns {:?} ", sandbox_exit_time_in_ns);
         }  else if line.contains(APPLICATON_EXIT) {
-            app_exit_time_in_ns = get_log_time_stamp(&line).unwrap();
-            let words: Vec<&str> = line.split_whitespace().collect();
-            runtime_meausrement_in_bytes = words[10].parse::<u128>().unwrap();
+            app_exit_time_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
+
+            if runtime_type == &RuntimeType::Cquark {
+                let words: Vec<&str> = line.split_whitespace().collect();
+                runtime_meausrement_in_bytes = words[10].parse::<u128>().unwrap();
+            }
             debug!("app_exit_time {:?} runtime_meausrement_in_bytes {:?}", app_exit_time_in_ns, runtime_meausrement_in_bytes);
         }else if line.contains(REMOTE_ATTESTATION_START) {
-            remote_attestation_start_in_ns = get_log_time_stamp(&line).unwrap();
+            remote_attestation_start_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
             debug!("REMOTE_ATTESTATION_START {}", remote_attestation_start_in_ns);
         } else if line.contains(REMOTE_ATTESTATION_END) {
-            remote_attestation_end_in_ns = get_log_time_stamp(&line).unwrap();
+            remote_attestation_end_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
 
             debug!("REMOTE_ATTESTATION_END {}", remote_attestation_end_in_ns);
         } else if line.contains(GENERATE_ATTESTATION_REPORT_START) {
-            generate_attestation_report_start_in_ns = get_log_time_stamp(&line).unwrap();
+            generate_attestation_report_start_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
             debug!("GENERATE_ATTESTATION_REPORT_START {}", generate_attestation_report_start_in_ns);
 
         } else if line.contains(GENERATE_ATTESTATION_REPORT_END) {
-            generate_attestation_report_end_in_ns = get_log_time_stamp(&line).unwrap();
+            generate_attestation_report_end_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
             debug!("GENERATE_ATTESTATION_REPORT_END {}", generate_attestation_report_end_in_ns);
         }  else if line.contains(SOFT_MEASUREMENT_BEFORE_APP_LAUNCN) {
             let words: Vec<&str> = line.split_whitespace().collect();
@@ -515,13 +525,11 @@ fn parse_quark_log(round: i32) -> anyhow::Result<PodStatistic> {
             // runtime_meausrement_in_bytes = words[11].parse::<u64>().unwrap();
             debug!("LIB_MEASURED_DURING_RUNTIME {:?}", libs);
         } else if line.contains(SECRET_INJECTION_START) {
-            secret_injection_start_in_ns = get_log_time_stamp(&line).unwrap();
+            secret_injection_start_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
             debug!("SECRET_INJECTION_START {}", secret_injection_start_in_ns);
-
         }  else if line.contains(SECRET_INJECTION_END) {
-            secret_injection_end_in_ns = get_log_time_stamp(&line).unwrap();
+            secret_injection_end_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
             debug!("SECRET_INJECTION_END {}", secret_injection_end_in_ns);
-
         } 
     }
 
@@ -535,8 +543,7 @@ fn parse_quark_log(round: i32) -> anyhow::Result<PodStatistic> {
     let sandbox_exit_duration = sandbox_exit_time_in_ns - app_exit_time_in_ns;
 
     error!("round {:?}", round);
-    info!("pure_app_lanch_time {}, total_app_lanch_time {}, app_running_time {}, remote_attestation_and_provision_duration {}, get_report_duration {}, 
-                    secret_injection_duration {} measurement_in_byte_before_app_launch {} runtime_meausrement_in_bytes {}, sandbox_exit_duration {}", 
+    info!("pure_app_lanch_time {}, total_app_lanch_time {}, app_running_time {}, remote_attestation_and_provision_duration {}, get_report_duration {}, secret_injection_duration {} measurement_in_byte_before_app_launch {} runtime_meausrement_in_bytes {}, sandbox_exit_duration {}", 
                                 pure_app_lanch_time, total_app_lanch_time, app_running_time, remote_attestation_and_provision_duration, get_report_duration, secret_injection_duration, 
                                                 measurement_in_byte_before_app_launch, runtime_meausrement_in_bytes, sandbox_exit_duration);
 
@@ -593,60 +600,20 @@ fn setup(runtime_type: RuntimeType, workload_type: WorkloadType) -> anyhow::Resu
 
 
 
-
-
-
-
-
-async fn a(loop_times: i32, pod_name: String, file_path: std::path::PathBuf, workload_type: WorkloadType) ->  anyhow::Result<i32>{
-
-
-    let b = serde_json::json!({
-        "apiVersion": "v1",
-        "kind": "Pod",
-        "metadata": { "name": "example" },
-        "spec": {
-            "containers": [{
-                "name": "example",
-                "image": "alpine",
-                "command": ["sh", "-c", "for i in `seq 15`; do if [ $i -lt 7 ]; then echo \"o $i\"; else echo \"e $i\" 1>&2; fi; sleep 1; done;"],
-            }],
-}});
-
-
-let p: Pod = serde_json::from_value(serde_json::json!({
-    "apiVersion": "v1",
-    "kind": "Pod",
-    "metadata": { "name": "example" },
-    "spec": {
-        "containers": [{
-            "name": "example",
-            "image": "alpine",
-            "command": ["sh", "-c", "for i in `seq 15`; do if [ $i -lt 7 ]; then echo \"o $i\"; else echo \"e $i\" 1>&2; fi; sleep 1; done;"],
-        }],
-    }
-}))?;
-
-    Ok(1)    
-}
-
-
-
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
 
     // tracing_subscriber::fmt::init();
-    setup(RuntimeType::Cquark, WorkloadType::Nginx).unwrap();
+    setup(RuntimeType::Baseline, WorkloadType::Nginx).unwrap();
 
 
     // parse_quark_log();
     
     // let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/redis.yaml");
-    // let res = test_app_lauch_time(1, "redis".to_string(), path, WorkloadType::Redis).await?;
+    // let res = test_app_lauch_time(2, "redis".to_string(), path, WorkloadType::Redis).await?;
 
     let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/ngnix.yaml");
-    let res = test_app_lauch_time(100, "nginx".to_string(), path, WorkloadType::Nginx).await?;
-    assert!(res == 100);
+    let res = test_app_lauch_time(2, "nginx".to_string(), path, WorkloadType::Nginx, RuntimeType::Baseline).await?;
+    assert!(res == 2);
     Ok(())
 }

@@ -98,6 +98,8 @@ async fn wait_for_nginx_to_run (pod_name: &str, wait_time: u64) ->  anyhow::Resu
 
 pub async fn run_nginx_benchmark(pod_ip: &str, pod_name: &str) ->  anyhow::Result<Output> {
 
+    info!("run_nginx_benchmark");
+
     wait_for_nginx_to_run(pod_name, 5).await?;
 
     let cmd = format!("ab -n 20000 -c 100 http://{}:80/index.html", pod_ip);
