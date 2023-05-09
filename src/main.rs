@@ -37,7 +37,8 @@ use crate::nginx::calculate_nginx_result;
 use crate::redis::{RedisStatistic, calculate_redis_result, run_redis_benchmark, collect_redis_statistics};
 use crate::nginx::run_nginx_benchmark;
 
-
+const SANDBOX_START: &str = "sandbox start";
+const SANDBOX_EXIT: &str = "sandbox exit";
 const APPLICATON_START: &str = "application start";
 const APPLICATON_EXIT: &str = "application exit";
 const REMOTE_ATTESTATION_START: &str = "remote attestation start";
@@ -66,8 +67,10 @@ struct PodStatistic {
     remote_attestation_and_provision_duration_in_ms: f64,
     get_report_duration_in_ms: f64,
     secret_injection_duration_in_ms: f64,
-    app_lanch_duration_in_ms: f64,
+    pure_app_lanch_duration_in_ms: f64,
+    total_app_lanch_time_in_ms: f64,
     app_running_dution_in_ms:  f64,
+    sandbox_exit_duration_in_ms: f64,
     measurement_before_app_launch_in_mb: f64,
     runtime_meausrement_in_mb: f64,
     // How long did the whole pod launch, app running, pod quit take
@@ -152,18 +155,29 @@ fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Statisti
     let mut remote_attestation_and_provision_duration_in_ms: Vec<f64> = Vec::new();
     let mut get_report_duration_in_ms: Vec<f64> = Vec::new();
     let mut secret_injection_duration_in_ms: Vec<f64> = Vec::new();
-    let mut app_lanch_duration_in_ms: Vec<f64> = Vec::new();
+
+    let mut pure_app_lanch_duration_in_ms: Vec<f64> = Vec::new();
+    let mut total_app_lanch_time_in_ms:Vec<f64> = Vec::new();
     let mut app_running_dution_in_ms: Vec<f64> = Vec::new();
+    let mut sandbox_exit_duration_in_ms: Vec<f64> = Vec::new();
+
     let mut measurement_before_app_launch_in_mb: Vec<f64> = Vec::new();
     let mut runtime_meausrement_in_mb: Vec<f64> = Vec::new();
+
+
+
     let mut total_period_in_s: Vec<f64> = Vec::new();
 
     for item in &statistic_keeper.pods_statistic {
         remote_attestation_and_provision_duration_in_ms.push(item.remote_attestation_and_provision_duration_in_ms);
         get_report_duration_in_ms.push(item.get_report_duration_in_ms);
         secret_injection_duration_in_ms.push(item.secret_injection_duration_in_ms);
-        app_lanch_duration_in_ms.push(item.app_lanch_duration_in_ms);
+
+        pure_app_lanch_duration_in_ms.push(item.pure_app_lanch_duration_in_ms);
+        total_app_lanch_time_in_ms.push(item.total_app_lanch_time_in_ms);
         app_running_dution_in_ms.push(item.app_running_dution_in_ms);
+        sandbox_exit_duration_in_ms.push(item.sandbox_exit_duration_in_ms);
+
         measurement_before_app_launch_in_mb.push(item.measurement_before_app_launch_in_mb);
         runtime_meausrement_in_mb.push(item.runtime_meausrement_in_mb);
         total_period_in_s.push(item.total_period_in_s);
@@ -172,8 +186,13 @@ fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Statisti
     let remote_attestation_and_provision_statistic_in_ms = get_statistic(&remote_attestation_and_provision_duration_in_ms).unwrap();
     let get_report_duration_in_ms_statistic = get_statistic(&get_report_duration_in_ms).unwrap();
     let secret_injection_duration_in_ms_statistic = get_statistic(&secret_injection_duration_in_ms).unwrap();
-    let app_lanch_duration_in_ms_statistic = get_statistic(&app_lanch_duration_in_ms).unwrap();
+
+    let pure_app_lanch_duration_in_ms_statistic = get_statistic(&pure_app_lanch_duration_in_ms).unwrap();
+    let total_app_lanch_time_in_ms_statistic = get_statistic(&total_app_lanch_time_in_ms).unwrap();
+
     let app_running_dution_in_ms_statistic = get_statistic(&app_running_dution_in_ms).unwrap();
+    let sandbox_exit_duration_in_ms_statistic = get_statistic(&sandbox_exit_duration_in_ms).unwrap();
+
     let measurement_before_app_launch_in_mb_statistic = get_statistic(&measurement_before_app_launch_in_mb).unwrap();
     let runtime_meausrement_in_mb_statistic = get_statistic(&runtime_meausrement_in_mb).unwrap();
     let total_period_in_s_statistic = get_statistic(&total_period_in_s).unwrap();
@@ -182,8 +201,12 @@ fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Statisti
     info!("remote_attestation_and_provision_statistic_in_ms: {:?}", remote_attestation_and_provision_statistic_in_ms);
     info!("get_report_duration_in_ms_statistic: {:?}", get_report_duration_in_ms_statistic);
     info!("secret_injection_duration_in_ms_statistic: {:?}", secret_injection_duration_in_ms_statistic);
-    info!("app_lanch_duration_in_ms_statistic: {:?}", app_lanch_duration_in_ms_statistic);
+
+    info!("pure_app_lanch_duration_in_ms_statistic: {:?}", pure_app_lanch_duration_in_ms_statistic);
+    info!("total_app_lanch_time_in_ms_statistic: {:?}", total_app_lanch_time_in_ms_statistic);
     info!("app_running_dution_in_ms_statistic: {:?}", app_running_dution_in_ms_statistic);
+    info!("sandbox_exit_duration_in_ms_statistic: {:?}", sandbox_exit_duration_in_ms_statistic);
+
     info!("measurement_before_app_launch_in_mb_statistic: {:?}", measurement_before_app_launch_in_mb_statistic);
     info!("runtime_meausrement_in_mb_statistic: {:?}", runtime_meausrement_in_mb_statistic);
     info!("total_period_in_s_statistic: {:?}", total_period_in_s_statistic);
@@ -427,6 +450,9 @@ fn parse_quark_log(round: i32) -> anyhow::Result<PodStatistic> {
     let mut secret_injection_start_in_ns = 0;
     let mut secret_injection_end_in_ns = 0;
 
+    let mut sandbox_start_time_in_ns = 0;
+    let mut sandbox_exit_time_in_ns = 0;
+
     let file = File::open("/var/log/quark/quark.log")?;
     let reader = BufReader::new(file);
 
@@ -434,12 +460,19 @@ fn parse_quark_log(round: i32) -> anyhow::Result<PodStatistic> {
         
         let line = line?;
 
-        if line.contains(APPLICATON_EXIT) {
+
+        if line.contains(SANDBOX_START) {
+            sandbox_start_time_in_ns = get_log_time_stamp(&line).unwrap();
+            debug!("sandbox_start_time_in_ns {:?}", sandbox_start_time_in_ns);
+        } else if line.contains(SANDBOX_EXIT) {
+            sandbox_exit_time_in_ns = get_log_time_stamp(&line).unwrap();
+            debug!("sandbox_exit_time_in_ns {:?} ", sandbox_exit_time_in_ns);
+        }  else if line.contains(APPLICATON_EXIT) {
             app_exit_time_in_ns = get_log_time_stamp(&line).unwrap();
             let words: Vec<&str> = line.split_whitespace().collect();
             runtime_meausrement_in_bytes = words[10].parse::<u128>().unwrap();
             debug!("app_exit_time {:?} runtime_meausrement_in_bytes {:?}", app_exit_time_in_ns, runtime_meausrement_in_bytes);
-        } else if line.contains(REMOTE_ATTESTATION_START) {
+        }else if line.contains(REMOTE_ATTESTATION_START) {
             remote_attestation_start_in_ns = get_log_time_stamp(&line).unwrap();
             debug!("REMOTE_ATTESTATION_START {}", remote_attestation_start_in_ns);
         } else if line.contains(REMOTE_ATTESTATION_END) {
@@ -497,19 +530,25 @@ fn parse_quark_log(round: i32) -> anyhow::Result<PodStatistic> {
     let remote_attestation_and_provision_duration = remote_attestation_end_in_ns - remote_attestation_start_in_ns - get_report_duration;
     let app_running_time = app_exit_time_in_ns - app_start_time_in_ns;
     // time used by  base line component to set up env for contianer  + software measurement overhead
-    let app_lanch_time = app_start_time_in_ns - remote_attestation_and_provision_duration - get_report_duration;
+    let pure_app_lanch_time = app_start_time_in_ns - remote_attestation_and_provision_duration - get_report_duration - sandbox_start_time_in_ns;
+    let total_app_lanch_time = app_start_time_in_ns  - sandbox_start_time_in_ns;
+    let sandbox_exit_duration = sandbox_exit_time_in_ns - app_exit_time_in_ns;
 
     error!("round {:?}", round);
-    info!("app_lanch_time {}, app_running_time {}, remote_attestation_and_provision_duration {}, get_report_duration {}, secret_injection_duration {} measurement_in_byte_before_app_launch {} runtime_meausrement_in_bytes {}", 
-    app_lanch_time, app_running_time, remote_attestation_and_provision_duration, get_report_duration, secret_injection_duration, measurement_in_byte_before_app_launch, runtime_meausrement_in_bytes);
+    info!("pure_app_lanch_time {}, total_app_lanch_time {}, app_running_time {}, remote_attestation_and_provision_duration {}, get_report_duration {}, 
+                    secret_injection_duration {} measurement_in_byte_before_app_launch {} runtime_meausrement_in_bytes {}, sandbox_exit_duration {}", 
+                                pure_app_lanch_time, total_app_lanch_time, app_running_time, remote_attestation_and_provision_duration, get_report_duration, secret_injection_duration, 
+                                                measurement_in_byte_before_app_launch, runtime_meausrement_in_bytes, sandbox_exit_duration);
 
 
     let statistic = PodStatistic {
         remote_attestation_and_provision_duration_in_ms: (remote_attestation_and_provision_duration as f64 / 1000000.0),
         get_report_duration_in_ms: (get_report_duration as f64) / 1000000.0,
         secret_injection_duration_in_ms: (secret_injection_duration as f64) / 1000000.0,
-        app_lanch_duration_in_ms: (app_lanch_time as f64) / 1000000.0,
+        pure_app_lanch_duration_in_ms: (pure_app_lanch_time as f64) / 1000000.0,
+        total_app_lanch_time_in_ms: (total_app_lanch_time as f64) / 1000000.0,
         app_running_dution_in_ms: (app_running_time as f64) / 1000000.0,
+        sandbox_exit_duration_in_ms: (sandbox_exit_duration as f64) / 1000000.0,
         measurement_before_app_launch_in_mb: (measurement_in_byte_before_app_launch as f64) / 1024.0,
         runtime_meausrement_in_mb: (runtime_meausrement_in_bytes as f64) / 1024.0,
         ..Default::default()
@@ -554,6 +593,46 @@ fn setup(runtime_type: RuntimeType, workload_type: WorkloadType) -> anyhow::Resu
 
 
 
+
+
+
+
+
+async fn a(loop_times: i32, pod_name: String, file_path: std::path::PathBuf, workload_type: WorkloadType) ->  anyhow::Result<i32>{
+
+
+    let b = serde_json::json!({
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": { "name": "example" },
+        "spec": {
+            "containers": [{
+                "name": "example",
+                "image": "alpine",
+                "command": ["sh", "-c", "for i in `seq 15`; do if [ $i -lt 7 ]; then echo \"o $i\"; else echo \"e $i\" 1>&2; fi; sleep 1; done;"],
+            }],
+}});
+
+
+let p: Pod = serde_json::from_value(serde_json::json!({
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": { "name": "example" },
+    "spec": {
+        "containers": [{
+            "name": "example",
+            "image": "alpine",
+            "command": ["sh", "-c", "for i in `seq 15`; do if [ $i -lt 7 ]; then echo \"o $i\"; else echo \"e $i\" 1>&2; fi; sleep 1; done;"],
+        }],
+    }
+}))?;
+
+    Ok(1)    
+}
+
+
+
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
 
@@ -567,7 +646,7 @@ async fn main() -> anyhow::Result<()> {
     // let res = test_app_lauch_time(1, "redis".to_string(), path, WorkloadType::Redis).await?;
 
     let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/ngnix.yaml");
-    let res = test_app_lauch_time(10, "nginx".to_string(), path, WorkloadType::Nginx).await?;
-    assert!(res == 10);
+    let res = test_app_lauch_time(100, "nginx".to_string(), path, WorkloadType::Nginx).await?;
+    assert!(res == 100);
     Ok(())
 }

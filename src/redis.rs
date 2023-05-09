@@ -199,6 +199,8 @@ pub async fn run_redis_benchmark(pod_ip: String) ->  anyhow::Result<Output>{
     // Compile code. | grep 'per second'
     let cmd = format!("redis-benchmark -h {} -p 6379 -n 100000 -c 20 --csv", pod_ip);
 
+    info!("the redis cmd {}", cmd);
+
     let output = Command::new("bash")
     .args([
         "-c",
