@@ -1,6 +1,8 @@
 
 mod redis;
 mod nginx;
+mod kbs_https_clinet;
+mod my_loger;
 
 
 #[macro_use]
@@ -36,6 +38,8 @@ use crate::nginx::calculate_nginx_result;
 
 use crate::redis::{RedisStatistic, calculate_redis_result, run_redis_benchmark, collect_redis_statistics};
 use crate::nginx::run_nginx_benchmark;
+use crate::kbs_https_clinet::perf_https_attestation_and_provisioning_client;
+use crate::my_loger::MyLoger;
 
 const SANDBOX_START: &str = "sandbox start";
 const SANDBOX_EXIT: &str = "sandbox exit";
@@ -117,7 +121,7 @@ enum WorkloadType {
 }
 
 #[derive(Debug, PartialEq)]
-enum RuntimeType {
+pub enum RuntimeType {
     Baseline,
     Cquark,   
 }
@@ -833,7 +837,7 @@ fn parse_quark_log(round: i32, runtime_type: &RuntimeType) -> anyhow::Result<Pod
 
 
 
-fn setup(runtime_type: RuntimeType, workload_type: WorkloadType) -> anyhow::Result<()> {
+fn setup(runtime_type: RuntimeType) -> anyhow::Result<()> {
 
     let current_time = SystemTime::now();
     let datetime: DateTime<Utc> = current_time.into();
@@ -847,21 +851,10 @@ fn setup(runtime_type: RuntimeType, workload_type: WorkloadType) -> anyhow::Resu
     current_path.push(&dir_name);
     assert!(std::env::set_current_dir(&current_path).is_ok());
 
-    let time_format = simplelog::format_description!("[year]:[month]:[day]:[hour]:[minute]:[second].[subsecond]");
-
-    let config = ConfigBuilder::new()
-    .set_time_format_custom(time_format)
-    .build();
-
-    CombinedLogger::init(
-        vec![
-            TermLogger::new(LevelFilter::Info, config.clone(), TerminalMode::Mixed, ColorChoice::Auto),
-            WriteLogger::new(LevelFilter::Info, config, File::create("benchmark.log").unwrap()),
-        ]
-    ).unwrap();
-
     Ok(())
 }
+
+
 
 
 
@@ -869,13 +862,35 @@ fn setup(runtime_type: RuntimeType, workload_type: WorkloadType) -> anyhow::Resu
 async fn main() -> anyhow::Result<()> {
 
     // tracing_subscriber::fmt::init();
-    setup(RuntimeType::Cquark, WorkloadType::Nginx).unwrap();
+    setup(RuntimeType::Cquark).unwrap();
+
+    let time_format = simplelog::format_description!("[year]:[month]:[day]:[hour]:[minute]:[second].[subsecond]");
+
+    let config = ConfigBuilder::new()
+    .set_time_format_custom(time_format)
+    .build();
+
+
+
+    let mut my_loger = MyLoger::new(LevelFilter::Info, config.clone(), File::create("redis.log").unwrap());
+
+
+    let a: MyLoger<File> = my_loger.clone();
+
+    CombinedLogger::init(
+        vec![
+            TermLogger::new(LevelFilter::Info, config.clone(), TerminalMode::Mixed, ColorChoice::Auto),
+            Box::new(a)
+        ]
+    ).unwrap();
 
 
     // parse_quark_log(1, &RuntimeType::Cquark).unwrap();
     
-    // let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/redis.yaml");
-    // let res = test_app_lauch_time(2, "redis".to_string(), path, WorkloadType::Redis).await?;
+    let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/redis.yaml");
+    let res = test_app_lauch_time(2, "redis".to_string(), path, WorkloadType::Redis, RuntimeType::Cquark).await?;
+
+    my_loger.reset_file_path(LevelFilter::Info, config, File::create("nginx.log").unwrap()).unwrap();
 
     let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/ngnix.yaml");
     let res = test_app_lauch_time(2, "nginx".to_string(), path, WorkloadType::Nginx, RuntimeType::Cquark).await?;
