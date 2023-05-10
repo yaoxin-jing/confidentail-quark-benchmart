@@ -45,15 +45,16 @@ const REMOTE_ATTESTATION_START: &str = "remote attestation start";
 const REMOTE_ATTESTATION_END: &str = "remote attestation finished";
 const GENERATE_ATTESTATION_REPORT_START: &str = "generate_evidence start";
 const GENERATE_ATTESTATION_REPORT_END: &str = "generate_evidence end";
-const SOFT_MEASUREMENT_BEFORE_APP_LAUNCN: &str = "measured_cmp_in_bytes_before_app_launch";
-const LIB_MEASURED_BEFORE_APP_LAUNCHED: &str = "shared libs loaded before application lauched";
-const LIB_MEASURED_DURING_RUNTIME: &str = "shared libs loaded after application lauched";
+
 const SECRET_INJECTION_START: &str = "secret injection start";
 const SECRET_INJECTION_END: &str = "secret injection finished";
 
 
-
-
+const MEASURE_QKERNEL_ARG_DUATION: &str = "measure_qkernel_argument";
+const MEASURE_STACK_DUATION: &str = "measure_stack";
+const MEASURE_ELF_DUATION: &str = "measure_elf_loadable_segment";
+const MEASURE_SHARED_LIB: &str = "measure_shared_lib";
+const MEASURE_PROC_SPEC: &str = "measure_process_spec";
 
 
 lazy_static! {
@@ -61,6 +62,37 @@ lazy_static! {
     static ref LIB_MEASURED_BEFORE_APP_LAUNCHED_KEEPER: Mutex<HashSet<String>> = Mutex::new(HashSet::default());
     static ref LIB_MEASURED_DURING_RUNTIME_KEEPER: Mutex<HashSet<String>> = Mutex::new(HashSet::default());
 }
+
+
+
+#[derive(Debug, Default, Clone)]
+struct Mesuarement {
+    pub measured_executable_memory_mapping_in_gb_before_app_launch: f64,
+    pub measured_shared_lib_memory_mapping_in_gb_before_app_launch: f64,
+    pub measured_process_spec_before_app_launch_in_byte: f64,
+    pub measured_stack_in_bytes_before_app_launch: f64,
+    pub measured_qkernel_args_in_bytes_before_app_launch: f64,
+
+    pub measured_executable_memory_mapping_in_gb_after_app_launch: f64,
+    pub measured_shared_lib_memory_mapping_in_gb_after_app_launch: f64,
+    pub measured_stack_in_bytes_after_app_launch: f64,
+
+
+    measure_qkernel_args_duration_in_us_before_app_launch: f64,
+    measure_stack_duration_in_us_before_app_launch: f64,
+    measure_elf_loadable_segment_duration_in_us_before_app_launch: f64,
+    measure_shared_lib_duration_in_us_before_app_launch: f64,
+    measure_process_spec_duration_in_us_before_app_launch: f64,
+
+
+    measure_qkernel_args_duration_in_us_after_app_launch: f64,
+    measure_stack_duration_in_us_after_app_launch: f64,
+    measure_elf_loadable_segment_duration_in_us_after_app_launch: f64,
+    measure_shared_lib_duration_in_us_after_app_launch: f64,
+    measure_process_spec_duration_in_us_after_app_launch: f64,
+}
+
+
 
 #[derive(Debug, Default)]
 struct PodStatistic {
@@ -71,10 +103,10 @@ struct PodStatistic {
     total_app_lanch_time_in_ms: f64,
     app_running_dution_in_ms:  f64,
     sandbox_exit_duration_in_ms: f64,
-    measurement_before_app_launch_in_mb: f64,
-    runtime_meausrement_in_mb: f64,
     // How long did the whole pod launch, app running, pod quit take
     total_period_in_s: f64,
+
+    mesuarement: Mesuarement
 }
 
 
@@ -161,12 +193,21 @@ fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Statisti
     let mut app_running_dution_in_ms: Vec<f64> = Vec::new();
     let mut sandbox_exit_duration_in_ms: Vec<f64> = Vec::new();
 
-    let mut measurement_before_app_launch_in_mb: Vec<f64> = Vec::new();
-    let mut runtime_meausrement_in_mb: Vec<f64> = Vec::new();
-
-
-
     let mut total_period_in_s: Vec<f64> = Vec::new();
+
+
+    let mut  measure_qkernel_args_duration_in_us_before_app_launch: Vec<f64> = Vec::new();
+    let mut  measure_stack_duration_in_us_before_app_launch: Vec<f64> = Vec::new();
+    let mut measure_elf_loadable_segment_duration_in_us_before_app_launch: Vec<f64> = Vec::new();
+    let mut measure_shared_lib_duration_in_us_before_app_launch: Vec<f64> = Vec::new();
+    let mut measure_process_spec_duration_in_us_before_app_launch: Vec<f64> = Vec::new();
+
+
+    let mut measure_qkernel_args_duration_in_us_after_app_launch:Vec<f64> = Vec::new();
+    let mut measure_stack_duration_in_us_after_app_launch: Vec<f64> = Vec::new();
+    let mut  measure_elf_loadable_segment_duration_in_us_after_app_launch: Vec<f64> = Vec::new();
+    let mut measure_shared_lib_duration_in_us_after_app_launch: Vec<f64> = Vec::new();
+    let mut measure_process_spec_duration_in_us_after_app_launch: Vec<f64> = Vec::new();
 
     for item in &statistic_keeper.pods_statistic {
         remote_attestation_and_provision_duration_in_ms.push(item.remote_attestation_and_provision_duration_in_ms);
@@ -178,9 +219,21 @@ fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Statisti
         app_running_dution_in_ms.push(item.app_running_dution_in_ms);
         sandbox_exit_duration_in_ms.push(item.sandbox_exit_duration_in_ms);
 
-        measurement_before_app_launch_in_mb.push(item.measurement_before_app_launch_in_mb);
-        runtime_meausrement_in_mb.push(item.runtime_meausrement_in_mb);
         total_period_in_s.push(item.total_period_in_s);
+
+
+        measure_qkernel_args_duration_in_us_before_app_launch.push(item.mesuarement.measure_qkernel_args_duration_in_us_before_app_launch);
+        measure_stack_duration_in_us_before_app_launch.push(item.mesuarement.measure_stack_duration_in_us_before_app_launch);
+        measure_elf_loadable_segment_duration_in_us_before_app_launch.push(item.mesuarement.measure_elf_loadable_segment_duration_in_us_before_app_launch);
+        measure_shared_lib_duration_in_us_before_app_launch.push(item.mesuarement.measure_shared_lib_duration_in_us_before_app_launch);
+        measure_process_spec_duration_in_us_before_app_launch.push(item.mesuarement.measure_process_spec_duration_in_us_before_app_launch);
+    
+    
+        measure_qkernel_args_duration_in_us_after_app_launch.push(item.mesuarement.measure_qkernel_args_duration_in_us_after_app_launch);
+        measure_stack_duration_in_us_after_app_launch.push(item.mesuarement.measure_stack_duration_in_us_after_app_launch);
+        measure_elf_loadable_segment_duration_in_us_after_app_launch.push(item.mesuarement.measure_elf_loadable_segment_duration_in_us_after_app_launch);
+        measure_shared_lib_duration_in_us_after_app_launch.push(item.mesuarement.measure_shared_lib_duration_in_us_after_app_launch);
+        measure_process_spec_duration_in_us_after_app_launch.push(item.mesuarement.measure_process_spec_duration_in_us_after_app_launch);
     }
 
     let remote_attestation_and_provision_statistic_in_ms = get_statistic(&remote_attestation_and_provision_duration_in_ms).unwrap();
@@ -193,10 +246,10 @@ fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Statisti
     let app_running_dution_in_ms_statistic = get_statistic(&app_running_dution_in_ms).unwrap();
     let sandbox_exit_duration_in_ms_statistic = get_statistic(&sandbox_exit_duration_in_ms).unwrap();
 
-    let measurement_before_app_launch_in_mb_statistic = get_statistic(&measurement_before_app_launch_in_mb).unwrap();
-    let runtime_meausrement_in_mb_statistic = get_statistic(&runtime_meausrement_in_mb).unwrap();
     let total_period_in_s_statistic = get_statistic(&total_period_in_s).unwrap();
 
+
+    error!("================== POD STATISTIC ==============================");
 
     info!("remote_attestation_and_provision_statistic_in_ms: {:?}", remote_attestation_and_provision_statistic_in_ms);
     info!("get_report_duration_in_ms_statistic: {:?}", get_report_duration_in_ms_statistic);
@@ -206,10 +259,56 @@ fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Statisti
     info!("total_app_lanch_time_in_ms_statistic: {:?}", total_app_lanch_time_in_ms_statistic);
     info!("app_running_dution_in_ms_statistic: {:?}", app_running_dution_in_ms_statistic);
     info!("sandbox_exit_duration_in_ms_statistic: {:?}", sandbox_exit_duration_in_ms_statistic);
-
-    info!("measurement_before_app_launch_in_mb_statistic: {:?}", measurement_before_app_launch_in_mb_statistic);
-    info!("runtime_meausrement_in_mb_statistic: {:?}", runtime_meausrement_in_mb_statistic);
     info!("total_period_in_s_statistic: {:?}", total_period_in_s_statistic);
+
+
+    
+    error!("================== Measurement Size STATISTIC ==============================");
+
+    let measurement = statistic_keeper.pods_statistic[0].mesuarement.clone();
+    info!("measured_executable_memory_mapping_in_gb_before_app_launch: {:?}", measurement.measured_executable_memory_mapping_in_gb_before_app_launch);
+    info!("measured_shared_lib_memory_mapping_in_gb_before_app_launch: {:?}", measurement.measured_shared_lib_memory_mapping_in_gb_before_app_launch);
+    info!("measured_process_spec_before_app_launch_in_byte: {:?}", measurement.measured_process_spec_before_app_launch_in_byte);
+    info!("measured_stack_in_bytes_before_app_launch: {:?}", measurement.measured_stack_in_bytes_before_app_launch);
+    info!("measured_qkernel_args_in_bytes_before_app_launch: {:?}", measurement.measured_qkernel_args_in_bytes_before_app_launch);
+
+
+    info!("measured_executable_memory_mapping_in_gb_after_app_launch: {:?}", measurement.measured_executable_memory_mapping_in_gb_after_app_launch);
+    info!("measured_shared_lib_memory_mapping_in_gb_after_app_launch: {:?}", measurement.measured_shared_lib_memory_mapping_in_gb_after_app_launch);
+    info!("measured_stack_in_bytes_after_app_launch: {:?}", measurement.measured_stack_in_bytes_after_app_launch);
+
+
+    let measure_qkernel_args_duration_in_us_statistic = get_statistic(&measure_qkernel_args_duration_in_us_before_app_launch).unwrap();
+    let measure_stack_duration_in_us_before_app_launch_statistic = get_statistic(&measure_stack_duration_in_us_before_app_launch).unwrap();
+    let measure_elf_loadable_segment_duration_in_us_before_app_launch_statistic = get_statistic(&measure_elf_loadable_segment_duration_in_us_before_app_launch).unwrap();
+    let measure_shared_lib_duration_in_us_before_app_launch_statistic = get_statistic(&measure_shared_lib_duration_in_us_before_app_launch).unwrap();
+    let measure_process_spec_duration_in_us_before_app_launch_statistic = get_statistic(&measure_process_spec_duration_in_us_before_app_launch).unwrap();
+
+    let measure_qkernel_args_duration_in_us_after_app_launch_statistic = get_statistic(&measure_qkernel_args_duration_in_us_after_app_launch).unwrap();
+    let measure_stack_duration_in_us_after_app_launch_statistic = get_statistic(&measure_stack_duration_in_us_after_app_launch).unwrap();
+    let measure_elf_loadable_segment_duration_in_us_after_app_launch_statistic = get_statistic(&measure_elf_loadable_segment_duration_in_us_after_app_launch).unwrap();
+    let measure_shared_lib_duration_in_us_after_app_launch_statistic = get_statistic(&measure_shared_lib_duration_in_us_after_app_launch).unwrap();
+    let measure_process_spec_duration_in_us_after_app_launch_statistic = get_statistic(&measure_process_spec_duration_in_us_after_app_launch).unwrap();
+
+    error!("================== Measurement  time STATISTIC ==============================");
+    info!("measure_elf_loadable_segment_duration_in_us_before_app_launch_statistic: {:?}", measure_elf_loadable_segment_duration_in_us_before_app_launch_statistic);
+    info!("measure_shared_lib_duration_in_us_before_app_launch_statistic: {:?}", measure_shared_lib_duration_in_us_before_app_launch_statistic);
+    info!("measure_process_spec_duration_in_us_before_app_launch_statistic: {:?}", measure_process_spec_duration_in_us_before_app_launch_statistic);
+    info!("measure_stack_duration_in_us_before_app_launch_statistic: {:?}", measure_stack_duration_in_us_before_app_launch_statistic);
+    info!("measure_qkernel_args_duration_in_us_statistic: {:?}", measure_qkernel_args_duration_in_us_statistic);
+
+
+
+    info!("measure_elf_loadable_segment_duration_in_us_after_app_launch_statistic: {:?}", measure_elf_loadable_segment_duration_in_us_after_app_launch_statistic);
+    info!("measure_shared_lib_duration_in_us_after_app_launch_statistic: {:?}", measure_shared_lib_duration_in_us_after_app_launch_statistic);
+    info!("measure_stack_duration_in_us_after_app_launch_statistic: {:?}", measure_stack_duration_in_us_after_app_launch_statistic);
+    info!("measure_process_spec_duration_in_us_after_app_launch_statistic: {:?}", measure_process_spec_duration_in_us_after_app_launch_statistic);
+    info!("measure_qkernel_args_duration_in_us_after_app_launch_statistic: {:?}", measure_qkernel_args_duration_in_us_after_app_launch_statistic);
+
+
+
+
+
 
     match workload_type {
         WorkloadType::Redis => {
@@ -472,17 +571,28 @@ fn get_log_time_stamp(str: &str, runtime_type: &RuntimeType) -> anyhow::Result<u
     }
 
 }
+const LIB_MEASURED_BEFORE_APP_LAUNCHED: &str = "shared libs loaded before application lauched";
+const LIB_MEASURED_DURING_RUNTIME: &str = "shared libs loaded after application lauched";
+
+
+const MEASURERED_EXU_IN_BYTE_BEFORE: &str = "measured_executable_memory_mapping_in_bytes_before_app_launch";
+const MEASURERED_LIB_IN_BYTE_BEFORE: &str = "measured_shared_lib_memory_mapping_in_bytes_before_app_launch";
+const MEASURERED_PRO_SPEC: &str = "measured_process_spec_before_app_launch";
+const MEASURERED_STACK_BEFORE: &str = "measured_stack_in_bytes_before_app_launch";
+const MEASURERED_QKERNEL_ARGS: &str = "measured_qkernel_args_in_bytes_before_app_launch";
+
+const MEASURERED_EXU_IN_BYTE_AFTER: &str = "measured_executable_memory_mapping_in_bytes_after_app_launch";
+const MEASURERED_LIB_IN_BYTE_AFTER: &str = "measured_shared_lib_memory_mapping_in_bytes_after_app_launch";
+const MEASURERED_STACK_AFTER: &str = "measured_stack_in_bytes_after_app_launch";
 
 fn parse_quark_log(round: i32, runtime_type: &RuntimeType) -> anyhow::Result<PodStatistic> {
 
     let mut app_start_time_in_ns = 0;
     let app_exit_time_in_ns= is_application_exit(runtime_type)?;
-    let mut runtime_meausrement_in_bytes = 0;
     let mut remote_attestation_start_in_ns = 0;
     let mut remote_attestation_end_in_ns = 0;
     let mut generate_attestation_report_start_in_ns = 0;
     let mut generate_attestation_report_end_in_ns = 0;
-    let mut measurement_in_byte_before_app_launch = 0;
 
     let mut secret_injection_start_in_ns = 0;
     let mut secret_injection_end_in_ns = 0;
@@ -493,6 +603,35 @@ fn parse_quark_log(round: i32, runtime_type: &RuntimeType) -> anyhow::Result<Pod
     let file = File::open("/var/log/quark/quark.log")?;
     let reader = BufReader::new(file);
 
+
+    let mut  measured_executable_memory_mapping_in_bytes_before_app_launch = 0;
+    let mut  measured_shared_lib_memory_mapping_in_bytes_before_app_launch = 0;
+    let mut  measured_process_spec_before_app_launch_in_byte = 0;
+    let mut  measured_stack_in_bytes_before_app_launch = 0;
+
+    let mut  measured_qkernel_args_in_bytes_before_app_launch = 0;
+
+
+    let mut  measured_executable_memory_mapping_in_bytes_after_app_launch = 0;
+    let mut  measured_shared_lib_memory_mapping_in_bytes_after_app_launch = 0;
+    let mut  measured_stack_in_bytes_after_app_launch = 0;
+
+
+    let mut measure_qkernel_args_duration_in_ns_before_app_launch = 0;
+    let mut measure_stack_duration_in_ns_before_app_launch = 0;
+    let mut  measure_elf_loadable_segment_duration_in_ns_before_app_launch  = 0;
+    let mut measure_shared_lib_duration_in_ns_before_app_launch  = 0;
+    let mut  measure_process_spec_duration_in_ns_before_app_launch  = 0;
+
+
+    let mut measure_qkernel_args_duration_in_ns_after_app_launch = 0;
+    let mut measure_stack_duration_in_ns_after_app_launch  = 0;
+    let mut measure_elf_loadable_segment_duration_in_ns_after_app_launch = 0;
+    let mut measure_shared_lib_duration_in_ns_after_app_launch = 0;
+    let mut measure_process_spec_duration_in_ns_after_app_launch = 0;
+
+    let mut is_app_start = false;
+
     for line in reader.lines() {
         let line = line?;
         if line.contains(SANDBOX_START) {
@@ -500,13 +639,19 @@ fn parse_quark_log(round: i32, runtime_type: &RuntimeType) -> anyhow::Result<Pod
             debug!("sandbox_start_time_in_ns {:?}", sandbox_start_time_in_ns);
         }  else if line.contains(APPLICATON_START) {
             app_start_time_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
-            debug!("app_start_time_in_ns {:?} runtime_meausrement_in_bytes {:?}", app_exit_time_in_ns, runtime_meausrement_in_bytes);
+            is_app_start = true;
+            debug!("app_start_time_in_ns {:?}", app_start_time_in_ns);
         } else if line.contains(APPLICATON_EXIT) {
             if runtime_type == &RuntimeType::Cquark {
                 let words: Vec<&str> = line.split_whitespace().collect();
-                runtime_meausrement_in_bytes = words[10].parse::<u128>().unwrap();
+
+                info!("word {:?}", words);
+                measured_shared_lib_memory_mapping_in_bytes_after_app_launch = words[11].parse::<u128>().unwrap();
+                measured_stack_in_bytes_after_app_launch = words[13].parse::<u128>().unwrap();
+                measured_executable_memory_mapping_in_bytes_after_app_launch =  words[15].parse::<u128>().unwrap();
             }
-            debug!("app_start_time_in_ns {:?} runtime_meausrement_in_bytes {:?}", app_exit_time_in_ns, runtime_meausrement_in_bytes);
+            debug!("APPLICATON_EXIT {:?} measured_shared_lib_memory_mapping_in_bytes_after_app_launch {:?} measured_stack_in_bytes_after_app_launch {:?} measured_executable_memory_mapping_in_bytes_after_app_launch {:?}", 
+                            app_exit_time_in_ns, measured_executable_memory_mapping_in_bytes_after_app_launch, measured_stack_in_bytes_after_app_launch, measured_executable_memory_mapping_in_bytes_after_app_launch);
         } else if line.contains(REMOTE_ATTESTATION_START) {
             remote_attestation_start_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
             debug!("REMOTE_ATTESTATION_START {}", remote_attestation_start_in_ns);
@@ -521,12 +666,36 @@ fn parse_quark_log(round: i32, runtime_type: &RuntimeType) -> anyhow::Result<Pod
         } else if line.contains(GENERATE_ATTESTATION_REPORT_END) {
             generate_attestation_report_end_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
             debug!("GENERATE_ATTESTATION_REPORT_END {}", generate_attestation_report_end_in_ns);
-        }  else if line.contains(SOFT_MEASUREMENT_BEFORE_APP_LAUNCN) {
+        }  
+        
+        
+        else if line.contains(MEASURERED_EXU_IN_BYTE_BEFORE) {
             let words: Vec<&str> = line.split_whitespace().collect();
-            measurement_in_byte_before_app_launch = words[4].parse::<u128>().unwrap();
+            measured_executable_memory_mapping_in_bytes_before_app_launch = words[4].parse::<u128>().unwrap();
             // runtime_meausrement_in_bytes = words[11].parse::<u64>().unwrap();
-            debug!("SOFT_MEASUREMENT_BEFORE_APP_LAUNCN {:?}", measurement_in_byte_before_app_launch);
-        } else if line.contains(LIB_MEASURED_BEFORE_APP_LAUNCHED) {
+            debug!("MEASURERED_EXU_IN_BYTE_BEFORE {:?}", measured_executable_memory_mapping_in_bytes_before_app_launch);
+        }else if line.contains(MEASURERED_LIB_IN_BYTE_BEFORE) {
+            let words: Vec<&str> = line.split_whitespace().collect();
+            measured_shared_lib_memory_mapping_in_bytes_before_app_launch = words[4].parse::<u128>().unwrap();
+            // runtime_meausrement_in_bytes = words[11].parse::<u64>().unwrap();
+            debug!("MEASURERED_LIB_IN_BYTE_BEFORE {:?}", measured_shared_lib_memory_mapping_in_bytes_before_app_launch);
+        } else if line.contains(MEASURERED_PRO_SPEC) {
+            let words: Vec<&str> = line.split_whitespace().collect();
+            measured_process_spec_before_app_launch_in_byte = words[4].parse::<u128>().unwrap();
+            // runtime_meausrement_in_bytes = words[11].parse::<u64>().unwrap();
+            debug!("MEASURERED_PRO_SPEC {:?}", measured_process_spec_before_app_launch_in_byte);
+        }  else if line.contains(MEASURERED_STACK_BEFORE) {
+            let words: Vec<&str> = line.split_whitespace().collect();
+            measured_stack_in_bytes_before_app_launch = words[4].parse::<u128>().unwrap();
+            // runtime_meausrement_in_bytes = words[11].parse::<u64>().unwrap();
+            debug!("MEASURERED_STACK_BEFORE {:?}", measured_stack_in_bytes_before_app_launch);
+        } else if line.contains(MEASURERED_QKERNEL_ARGS) {
+            let words: Vec<&str> = line.split_whitespace().collect();
+            measured_qkernel_args_in_bytes_before_app_launch = words[4].parse::<u128>().unwrap();
+            // runtime_meausrement_in_bytes = words[11].parse::<u64>().unwrap();
+            debug!("MEASURERED_QKERNEL_ARGS {:?}", measured_qkernel_args_in_bytes_before_app_launch);
+        } 
+        else if line.contains(LIB_MEASURED_BEFORE_APP_LAUNCHED) {
             let words: Vec<&str> = line.split_whitespace().collect();
 
             let lib_path: Vec<&str> = words[10].split("/").collect();
@@ -555,8 +724,54 @@ fn parse_quark_log(round: i32, runtime_type: &RuntimeType) -> anyhow::Result<Pod
         }  else if line.contains(SECRET_INJECTION_END) {
             secret_injection_end_in_ns = get_log_time_stamp(&line, runtime_type).unwrap();
             debug!("SECRET_INJECTION_END {}", secret_injection_end_in_ns);
+        }  else if line.contains(MEASURE_QKERNEL_ARG_DUATION) {
+
+            if is_app_start {
+                measure_qkernel_args_duration_in_ns_after_app_launch = measure_qkernel_args_duration_in_ns_after_app_launch + get_log_time_stamp(&line, runtime_type).unwrap();
+            } else {
+                measure_qkernel_args_duration_in_ns_before_app_launch = measure_qkernel_args_duration_in_ns_before_app_launch +  get_log_time_stamp(&line, runtime_type).unwrap();
+            } 
+            debug!("MEASURE_QKERNEL_ARG_DUATION {}", secret_injection_end_in_ns);
+        } else if line.contains(MEASURE_STACK_DUATION) {
+            if is_app_start {
+                measure_stack_duration_in_ns_after_app_launch = measure_stack_duration_in_ns_after_app_launch +   get_log_time_stamp(&line, runtime_type).unwrap();
+
+            } else {
+                measure_stack_duration_in_ns_before_app_launch = measure_stack_duration_in_ns_before_app_launch + get_log_time_stamp(&line, runtime_type).unwrap();
+            } 
+            debug!("MEASURE_STACK_DUATION {}", secret_injection_end_in_ns);
         } 
+        else if line.contains(MEASURE_ELF_DUATION) {
+            if is_app_start {
+                measure_elf_loadable_segment_duration_in_ns_after_app_launch = measure_elf_loadable_segment_duration_in_ns_after_app_launch +   get_log_time_stamp(&line, runtime_type).unwrap();
+
+            } else {
+                measure_elf_loadable_segment_duration_in_ns_before_app_launch = measure_elf_loadable_segment_duration_in_ns_before_app_launch +  get_log_time_stamp(&line, runtime_type).unwrap();
+            } 
+            debug!("MEASURE_ELF_DUATION {}", secret_injection_end_in_ns);
+        } 
+        else if line.contains(MEASURE_SHARED_LIB) {
+            if is_app_start {
+                measure_shared_lib_duration_in_ns_after_app_launch = measure_shared_lib_duration_in_ns_after_app_launch +   get_log_time_stamp(&line, runtime_type).unwrap() ;
+            } else {
+
+                measure_shared_lib_duration_in_ns_before_app_launch = measure_shared_lib_duration_in_ns_before_app_launch +   get_log_time_stamp(&line, runtime_type).unwrap();
+            } 
+            debug!("MEASURE_SHARED_LIB {}", secret_injection_end_in_ns);
+        } 
+        else if line.contains(MEASURE_PROC_SPEC) {
+            if is_app_start {
+                measure_process_spec_duration_in_ns_after_app_launch = measure_process_spec_duration_in_ns_after_app_launch +  get_log_time_stamp(&line, runtime_type).unwrap();
+
+            } else {
+                measure_process_spec_duration_in_ns_before_app_launch = measure_process_spec_duration_in_ns_before_app_launch +  get_log_time_stamp(&line, runtime_type).unwrap();
+            debug!("MEASURE_PROC_SPEC {}", secret_injection_end_in_ns);
+            } 
+        }
     }
+    
+
+
 
     let secret_injection_duration = secret_injection_end_in_ns - secret_injection_start_in_ns ;
     let get_report_duration = generate_attestation_report_end_in_ns - generate_attestation_report_start_in_ns; 
@@ -568,10 +783,36 @@ fn parse_quark_log(round: i32, runtime_type: &RuntimeType) -> anyhow::Result<Pod
     let sandbox_exit_duration = sandbox_exit_time_in_ns - app_exit_time_in_ns;
 
     error!("round {:?}", round);
-    info!("pure_app_lanch_time {}, total_app_lanch_time {}, app_running_time {}, remote_attestation_and_provision_duration {}, get_report_duration {}, secret_injection_duration {} measurement_in_byte_before_app_launch {} runtime_meausrement_in_bytes {}, sandbox_exit_duration {}", 
-                                pure_app_lanch_time, total_app_lanch_time, app_running_time, remote_attestation_and_provision_duration, get_report_duration, secret_injection_duration, 
-                                                measurement_in_byte_before_app_launch, runtime_meausrement_in_bytes, sandbox_exit_duration);
+    info!("pure_app_lanch_time {}, total_app_lanch_time {}, app_running_time {}, remote_attestation_and_provision_duration {}, get_report_duration {}, secret_injection_duration {}, sandbox_exit_duration {}", 
+                                pure_app_lanch_time, total_app_lanch_time, app_running_time, remote_attestation_and_provision_duration, get_report_duration, secret_injection_duration, sandbox_exit_duration);
 
+    
+    let measurement: Mesuarement = Mesuarement {
+        measured_executable_memory_mapping_in_gb_before_app_launch: (measured_executable_memory_mapping_in_bytes_before_app_launch as f64) / (1024.0 * 1024.0),
+        measured_shared_lib_memory_mapping_in_gb_before_app_launch: (measured_shared_lib_memory_mapping_in_bytes_before_app_launch as f64) / (1024.0 * 1024.0),
+        measured_process_spec_before_app_launch_in_byte: measured_process_spec_before_app_launch_in_byte as f64,
+        measured_stack_in_bytes_before_app_launch: measured_stack_in_bytes_before_app_launch as f64,
+        measured_qkernel_args_in_bytes_before_app_launch: measured_qkernel_args_in_bytes_before_app_launch as f64,
+    
+        measured_executable_memory_mapping_in_gb_after_app_launch: (measured_executable_memory_mapping_in_bytes_after_app_launch as f64) / (1024.0 * 1024.0),
+        measured_shared_lib_memory_mapping_in_gb_after_app_launch:(measured_shared_lib_memory_mapping_in_bytes_after_app_launch as f64) / (1024.0 * 1024.0),
+        measured_stack_in_bytes_after_app_launch: measured_stack_in_bytes_after_app_launch as f64,
+
+        measure_qkernel_args_duration_in_us_before_app_launch: (measure_qkernel_args_duration_in_ns_before_app_launch as f64) / (1000.0),
+        measure_stack_duration_in_us_before_app_launch: (measure_stack_duration_in_ns_before_app_launch as f64) / (1000.0),
+        measure_elf_loadable_segment_duration_in_us_before_app_launch: (measure_elf_loadable_segment_duration_in_ns_before_app_launch as f64) / (1000.0),
+        measure_shared_lib_duration_in_us_before_app_launch: (measure_shared_lib_duration_in_ns_before_app_launch as f64) / (1000.0),
+        measure_process_spec_duration_in_us_before_app_launch: (measure_process_spec_duration_in_ns_before_app_launch as f64) / (1000.0),
+    
+    
+        measure_qkernel_args_duration_in_us_after_app_launch: (measure_qkernel_args_duration_in_ns_after_app_launch as f64) / (1000.0),
+        measure_stack_duration_in_us_after_app_launch: (measure_stack_duration_in_ns_after_app_launch as f64) / (1000.0),
+        measure_elf_loadable_segment_duration_in_us_after_app_launch: (measure_elf_loadable_segment_duration_in_ns_after_app_launch as f64) / (1000.0),
+        measure_shared_lib_duration_in_us_after_app_launch: (measure_shared_lib_duration_in_ns_after_app_launch as f64) / (1000.0),
+        measure_process_spec_duration_in_us_after_app_launch: (measure_process_spec_duration_in_ns_after_app_launch as f64) / (1000.0),
+    };
+
+    info!("Mesuarement {:?}", measurement);
 
     let statistic = PodStatistic {
         remote_attestation_and_provision_duration_in_ms: (remote_attestation_and_provision_duration as f64 / 1000000.0),
@@ -581,12 +822,11 @@ fn parse_quark_log(round: i32, runtime_type: &RuntimeType) -> anyhow::Result<Pod
         total_app_lanch_time_in_ms: (total_app_lanch_time as f64) / 1000000.0,
         app_running_dution_in_ms: (app_running_time as f64) / 1000000.0,
         sandbox_exit_duration_in_ms: (sandbox_exit_duration as f64) / 1000000.0,
-        measurement_before_app_launch_in_mb: (measurement_in_byte_before_app_launch as f64) / 1024.0,
-        runtime_meausrement_in_mb: (runtime_meausrement_in_bytes as f64) / 1024.0,
+        mesuarement: measurement,
         ..Default::default()
     };
 
-    Ok(statistic)
+    return Ok(statistic)
 }
 
 
@@ -632,13 +872,13 @@ async fn main() -> anyhow::Result<()> {
     setup(RuntimeType::Cquark, WorkloadType::Nginx).unwrap();
 
 
-    // parse_quark_log();
+    // parse_quark_log(1, &RuntimeType::Cquark).unwrap();
     
     // let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/redis.yaml");
     // let res = test_app_lauch_time(2, "redis".to_string(), path, WorkloadType::Redis).await?;
 
     let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/ngnix.yaml");
-    let res = test_app_lauch_time(200, "nginx".to_string(), path, WorkloadType::Nginx, RuntimeType::Cquark).await?;
-    assert!(res == 200);
+    let res = test_app_lauch_time(2, "nginx".to_string(), path, WorkloadType::Nginx, RuntimeType::Cquark).await?;
+    // assert!(res == 200);
     Ok(())
 }
