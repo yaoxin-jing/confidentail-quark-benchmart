@@ -1,0 +1,91 @@
+2023:05:11:16:28:41.77610412 [INFO] yaml apiVersion: v1
+kind: Pod
+metadata:
+  name: test-get-report-sycall1
+spec:
+  runtimeClassName: quark
+  containers:
+  - name: syscall
+    image:  yaoxinjing/get-att-report-syscall-test:latest
+    command: ["/usr/src/app/test_get_report_syscall"]
+    args: ["10000"]
+    env:
+    - name: APPLICATION_NAME
+      value: "test_get_report"
+    - name: SECRET_MANAGER_IP
+      value: "10.221.117.198:8000"
+    - name: SHILED_POLICY_PATH
+      value: "quark_mongo/resource/policy"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 100Mi
+      limits:
+        memory: "200Mi"
+2023:05:11:16:28:54.62812256 [ERROR] ========================result=====================
+2023:05:11:16:28:54.62818097 [INFO] log: main start
+main start
+test_get_hardware_report start, loop time is 10000
+test_get_software_report_signed_by_kbs start loop time is 10000
+test_get_software_report_signed_by_user_provided_key start, loop time is 10000
+prepare_signing_key start
+prepare_signing_key generated private_key -----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAaAAAABNlY2RzYS
+1zaGEyLW5pc3RwMjU2AAAACG5pc3RwMjU2AAAAQQQEpsSfrH+5OoTHFNVqUscvJ8gRKB6h
+T5mH3GE0Yj0LJraUmvGWimwJPyu4VEwpUM6HZS89VEWY2B1ACVHfEA5ZAAAAwMMV0K3DFd
+CtAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBASmxJ+sf7k6hMcU
+1WpSxy8nyBEoHqFPmYfcYTRiPQsmtpSa8ZaKbAk/K7hUTClQzodlLz1URZjYHUAJUd8QDl
+kAAAAhALArd+jN+dr6NADaxlfg5Q2/nOAYbbuLcNSVSUzblWBQAAAAIHRoZSBwcml2YXRl
+IGtleSBnZW5lcmF0ZWQgYnkga2JzAQIDBAUGBw==
+-----END OPENSSH PRIVATE KEY-----
+
+test_get_hardware_report_in_ns OurStatistic { mean: 871130.2873712631, min: 837331.0, max: 1859871.0, std_deviation: 45891.419131476054, median: 1348601.0 }
+test_get_software_report_signed_by_kbs_in_ns OurStatistic { mean: 296931.14468553016, min: 287680.0, max: 532441.0, std_deviation: 19360.061423026626, median: 410060.5 }
+test_get_software_report_signed_by_user_provided_key_in_ns OurStatistic { mean: 299446.9346065409, min: 288110.0, max: 21149694.0, std_deviation: 209300.09349117626, median: 10718902.0 }
+3 test passed
+
+
+
+
+main start
+test_get_hardware_report start, loop time is 100000
+test_get_software_report_signed_by_kbs start loop time is 100000
+test_get_software_report_signed_by_user_provided_key start, loop time is 100000
+prepare_signing_key start
+prepare_signing_key generated private_key -----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAaAAAABNlY2RzYS
+1zaGEyLW5pc3RwMjU2AAAACG5pc3RwMjU2AAAAQQTd64xl/XzQUnwIvjLNBn1AHA6I9d/3
+y3cK7Xw/IqSvRPiOV4a8x+SUZgSAVpmMbhkxRmZmgiBzPtA2qcuLMuuwAAAAwBxSKyAcUi
+sgAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBN3rjGX9fNBSfAi+
+Ms0GfUAcDoj13/fLdwrtfD8ipK9E+I5XhrzH5JRmBIBWmYxuGTFGZmaCIHM+0Dapy4sy67
+AAAAAhAJokJgu6LfcHyBSAY3VNUOYoLLjUkg6yca8DA0+UIyNDAAAAIHRoZSBwcml2YXRl
+IGtleSBnZW5lcmF0ZWQgYnkga2JzAQIDBAUGBw==
+-----END OPENSSH PRIVATE KEY-----
+
+test_get_hardware_report_in_ns OurStatistic { mean: 870313.625473744, min: 813551.0, max: 23880411.0, std_deviation: 133441.46872866983, median: 12346981.0 }
+test_get_software_report_signed_by_kbs_in_ns OurStatistic { mean: 292262.91671082785, min: 279140.0, max: 560350.0, std_deviation: 16123.713700258786, median: 419745.0 }
+test_get_software_report_signed_by_user_provided_key_in_ns OurStatistic { mean: 284914.29070709203, min: 279171.0, max: 463020.0, std_deviation: 7589.124723324741, median: 371095.5 }
+
+
+
+main start
+test_get_hardware_report start, loop time is 2500000
+test_get_software_report_signed_by_kbs start loop time is 2500000
+test_get_software_report_signed_by_user_provided_key start, loop time is 2500000
+prepare_signing_key start
+prepare_signing_key generated private_key -----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAaAAAABNlY2RzYS
+1zaGEyLW5pc3RwMjU2AAAACG5pc3RwMjU2AAAAQQSXyNbF/Z2ty+yIdrRbFK2ge7txjSy3
+5aE6BYP6lSoXyNurC+EvZgq+fzGB+ZDULTbyEt1kZlJUfgiy+ryVP5EQAAAAuLqy5Fa6su
+RWAAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBJfI1sX9na3L7Ih2
+tFsUraB7u3GNLLfloToFg/qVKhfI26sL4S9mCr5/MYH5kNQtNvIS3WRmUlR+CLL6vJU/kR
+AAAAAgVOaCqB0eORw0tYVeDq9Lx6NpPwXGQnHMOx/rWZdkNOsAAAAgdGhlIHByaXZhdGUg
+a2V5IGdlbmVyYXRlZCBieSBrYnM=
+-----END OPENSSH PRIVATE KEY-----
+
+test_get_hardware_report_in_ns OurStatistic { mean: 838141.818959271, min: 809670.0, max: 37080556.0, std_deviation: 55323.7201570519, median: 18945113.0 }
+test_get_software_report_signed_by_kbs_in_ns OurStatistic { mean: 286305.66627610393, min: 278790.0, max: 12520651.0, std_deviation: 12489.235960290896, median: 6399720.5 }
+test_get_software_report_signed_by_user_provided_key_in_ns OurStatistic { mean: 286001.14718152146, min: 278930.0, max: 735601.0, std_deviation: 9557.627446638291, median: 507265.5 }
+3 test passed
+
+

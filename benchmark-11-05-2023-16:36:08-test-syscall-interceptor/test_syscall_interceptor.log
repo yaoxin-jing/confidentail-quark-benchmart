@@ -1,0 +1,58 @@
+2023:05:11:16:36:16.858620169 [INFO] yaml apiVersion: v1
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-syscall-interceptor
+spec:
+  runtimeClassName: quark
+  containers:
+  - name: syscall
+    image:  yaoxinjing/syscall-inteceptor-test:latest
+    command: ["/usr/src/app/test_get_report_syscall"]
+    args: ["1000000"]
+    env:
+    - name: APPLICATION_NAME
+      value: "test_get_report"
+    - name: SECRET_MANAGER_IP
+      value: "10.221.117.198:8000"
+    - name: SHILED_POLICY_PATH
+      value: "quark_mongo/mongo_resource/policy"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 100Mi
+      limits:
+        memory: "200Mi"
+
+
+
+Baseline:
+
+main start
+test_read_syscall start, loop time is 1000000
+test_write_syscall start, loop time is 1000000
+test_ppid_syscall start, loop time is 1000000
+test_getpid_syscall start, loop time is 1000000
+test_getpid_syscall start, loop time is 1000000
+
+test_fstat_syscall_in_ns OurStatistic { mean: 3246.789832210111, min: 3100.0, max: 28410.0, std_deviation: 197.58570570123823, median: 15755.0 }
+test_getpid_syscall_in_ns OurStatistic { mean: 276.69197630804484, min: 260.0, max: 10810.0, std_deviation: 41.53381597337628, median: 5535.0 }
+test_getppid_syscall_in_ns OurStatistic { mean: 273.8805541194382, min: 249.0, max: 15289.0, std_deviation: 51.52085918021251, median: 7769.0 }
+test_read_syscall_in_ns OurStatistic { mean: 1648.9828970171163, min: 1320.0, max: 105981.0, std_deviation: 228.62746126502134, median: 53650.5 }
+test_write_syscall_in_ns OurStatistic { mean: 5728.814766185202, min: 1760.0, max: 7438115.0, std_deviation: 3502.160354477473, median: 3719937.5 }
+
+
+C-quark"
+main start
+test_read_syscall start, loop time is 1000000
+test_write_syscall start, loop time is 1000000
+test_ppid_syscall start, loop time is 1000000
+test_getpid_syscall start, loop time is 1000000
+test_getpid_syscall start, loop time is 1000000
+test_fstat_syscall_in_ns OurStatistic { mean: 7738.529424470837, min: 7320.0, max: 141640.0, std_deviation: 601.2640440026862, median: 74480.0 }
+test_getpid_syscall_in_ns OurStatistic { mean: 4716.626948372843, min: 4400.0, max: 173330.0, std_deviation: 500.11169445668855, median: 88865.0 }
+test_getppid_syscall_in_ns OurStatistic { mean: 4775.028612971513, min: 4440.0, max: 110720.0, std_deviation: 488.73517112675967, median: 57580.0 }
+test_read_syscall_in_ns OurStatistic { mean: 10291.009857990752, min: 9500.0, max: 122111.0, std_deviation: 790.697300606763, median: 65805.5 }
+test_write_syscall_in_ns OurStatistic { mean: 10755.599072400883, min: 9520.0, max: 1376681.0, std_deviation: 2628.0084011377744, median: 693100.5 }
+test passed
+yaoxin@amd-se

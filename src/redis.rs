@@ -1,9 +1,15 @@
 
 
 use std::process::Output;
-use std::process::Command;
 use crate::get_statistic;
 use crate::StatisticKeeper;
+use std::time::{Duration, SystemTime};
+
+
+
+const REDIS_STARTED: &str = "Ready to accept connections";
+
+
 
 const PING_INLINE: &str = "PING_INLINE";
 const PING_BULK: &str = "PING_BULK";
@@ -40,8 +46,17 @@ pub struct RedisStatistic {
 
 impl RedisStatistic {
     fn cal_geometric_mean (&mut self) -> anyhow::Result<()> {
+
+        info!("ping_inline {:?}, ping_bulk {:?}, set {:?}, get {:?}, incr {:?}, lpush {:?}, rpush {:?}, lpop {:?}, rpop {:?}, sadd {:?}, hset {:?}, spop {:?} mset {:?}", self.ping_inline, self.ping_bulk, self.set,  self.get,
+             self.incr, self.lpush, self.rpush, self.lpop, self.rpop, self.sadd, self.hset, self.spop, self.mset);
         let product = self.ping_inline * self.ping_bulk * self.set * self.get * self.incr * self.lpush * self.rpush * self.lpop * self.rpop * self.sadd * self.hset * self.spop * self.mset;
-        assert!(product > 0.0);
+        // assert!(product > 0.0);
+
+        if product <= 0.0 {
+
+            error!("RedisStatistic cal_geometric_mean product is error, product is {:?}", product);
+            return Err(anyhow::Error::msg("RedisStatistic cal_geometric_mean product is error"))
+        }
         let root = 1.0 / 13.0;
         self.geo_mean = f64::powf(product, root);
         Ok(())
@@ -98,7 +113,7 @@ pub fn collect_redis_statistics(redis_output : Output) -> anyhow::Result<RedisSt
         return Err(anyhow::Error::msg("collect_redis_statistics failed"));   
     }
 
-    redis_statistic.cal_geometric_mean().unwrap();
+    redis_statistic.cal_geometric_mean()?;
 
     // info!("{:?}", redis_statistic);
     Ok(redis_statistic)
@@ -194,20 +209,59 @@ pub fn calculate_redis_result(statistic_keeper: &std::sync::MutexGuard<Statistic
 }
 
 
-pub async fn run_redis_benchmark(pod_ip: String) ->  anyhow::Result<Output>{
+async fn wait_for_redis_to_run (pod_name: &str, wait_time: u64) ->  anyhow::Result<()> {
+
+    let cmd = format!("kubectl logs {}", pod_name);
+
+    let seconds = Duration::from_secs(wait_time);
+    let start = SystemTime::now();
+    loop {
+
+        let output = tokio::process::Command::new("sh")
+        .args([
+            "-c",
+            &cmd
+        ])
+        .output()
+        .await.map_err(|e| anyhow::Error::msg(format!("run_nginx_benchmark failed to run nginx benchmark, get error {:?}", e)))?;
+        
+        
+        let res = String::from_utf8_lossy(&output.stdout);
+        debug!("log stdout: {}", res);
+
+        for line in res.lines() {
+            if line.contains(REDIS_STARTED) {
+                return Ok(())
+            }
+        }
+
+        match start.elapsed() {
+            Ok(elapsed) if elapsed > seconds => {
+                return Err(anyhow::Error::msg(format!("wait_for_nginx_to_run {} elapsed", wait_time)));
+            }
+            _ => (),
+        }
+
+    }
+}
+
+
+pub async fn run_redis_benchmark(pod_ip: String, pod_name: &str) ->  anyhow::Result<Output>{
+
+    wait_for_redis_to_run(pod_name, 5).await?;
 
     // Compile code. | grep 'per second'
-    let cmd = format!("redis-benchmark -h {} -p 6379 -n 100000 -c 20 --csv", pod_ip);
+    let cmd = format!("redis-benchmark -h {} -p 6379 -n 100000 -c 100 --csv", pod_ip);
 
     info!("the redis cmd {}", cmd);
 
-    let output = Command::new("bash")
+    let output =  tokio::process::Command::new("bash")
     .args([
         "-c",
         &cmd
     ])
     .output()
-    .map_err(|e| anyhow::Error::msg(format!("run_redis_benchmark failed to run redus benchmark, get error {:?}", e)))?;
+    .await.map_err(|e| anyhow::Error::msg(format!("run_redis_benchmark failed to run redus benchmark, get error {:?}", e)))?;
 
     // println!("status: {}", output.status);
     let res = String::from_utf8_lossy(&output.stdout);

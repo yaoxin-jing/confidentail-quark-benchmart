@@ -3,6 +3,7 @@ mod redis;
 mod nginx;
 mod kbs_https_clinet;
 mod my_loger;
+mod get_attestation_report_syscall_test;
 
 
 #[macro_use]
@@ -161,7 +162,7 @@ async fn delete_pod(pod_name: &str) ->  anyhow::Result<()>{
     });
 
     let deleted = await_condition(pods.clone(), &pod_name, is_deleted(&pod_uid));
-    let _ = tokio::time::timeout(std::time::Duration::from_secs(30), deleted).await?;
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(60), deleted).await?;
 
     Ok(())
 }
@@ -310,10 +311,6 @@ fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Statisti
     info!("measure_qkernel_args_duration_in_us_after_app_launch_statistic: {:?}", measure_qkernel_args_duration_in_us_after_app_launch_statistic);
 
 
-
-
-
-
     match workload_type {
         WorkloadType::Redis => {
             calculate_redis_result(statistic_keeper);
@@ -388,7 +385,7 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
 
 
         let output = match workload_type {
-            WorkloadType::Redis => run_redis_benchmark(pod_cluster_ip).await,
+            WorkloadType::Redis => run_redis_benchmark(pod_cluster_ip, &pod_name).await,
             WorkloadType::Nginx => run_nginx_benchmark(&pod_cluster_ip, &pod_name).await,
         };
 
@@ -478,12 +475,27 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
 
     error!("================== Result ==============================");
 
+
+
+
     {
         info!("libaries loaded before application is lauched {:?}", *LIB_MEASURED_BEFORE_APP_LAUNCHED_KEEPER.lock().unwrap());
         info!("libaries loaded during runtime {:?}", *LIB_MEASURED_DURING_RUNTIME_KEEPER.lock().unwrap());
+
+
+
     }
 
     calcaulate_statistic_result(&statistic_keeper, workload_type).unwrap();
+
+
+    // info!("StatisticKeeper {:?}", *statistic_keeper);
+
+
+    statistic_keeper.nginx_statistics = Vec::new();
+    statistic_keeper.redis_statistics = Vec::new();
+    statistic_keeper.pods_statistic = Vec::new();
+
     Ok(i)    
 }
 
@@ -563,6 +575,7 @@ fn atoi<F: FromStr>(input: &str) -> Result<F, <F as FromStr>::Err> {
 
 fn get_log_time_stamp(str: &str, runtime_type: &RuntimeType) -> anyhow::Result<u128> {
     let words: Vec<&str> = str.split_whitespace().collect();
+    // info!("words {:?}", words);
     match runtime_type {
         RuntimeType::Baseline => {
             atoi::<u128>(words[2])
@@ -841,7 +854,7 @@ fn setup(runtime_type: RuntimeType) -> anyhow::Result<()> {
 
     let current_time = SystemTime::now();
     let datetime: DateTime<Utc> = current_time.into();
-    let dir_name = format!("benchmark-{}-{:?}-{:?}", datetime.format("%d-%m-%Y-%T"), runtime_type, workload_type);
+    let dir_name = format!("benchmark-{}-{:?}", datetime.format("%d-%m-%Y-%T"), runtime_type);
     let cmd = format!("mkdir -p {}", dir_name);
 
     execute_cmd(&cmd);
@@ -862,7 +875,7 @@ fn setup(runtime_type: RuntimeType) -> anyhow::Result<()> {
 async fn main() -> anyhow::Result<()> {
 
     // tracing_subscriber::fmt::init();
-    setup(RuntimeType::Cquark).unwrap();
+    setup(RuntimeType::Baseline).unwrap();
 
     let time_format = simplelog::format_description!("[year]:[month]:[day]:[hour]:[minute]:[second].[subsecond]");
 
@@ -872,7 +885,7 @@ async fn main() -> anyhow::Result<()> {
 
 
 
-    let mut my_loger = MyLoger::new(LevelFilter::Info, config.clone(), File::create("redis.log").unwrap());
+    let mut my_loger = MyLoger::new(LevelFilter::Info, config.clone(), File::create("test_get_attestation_report_syscall.log").unwrap());
 
 
     let a: MyLoger<File> = my_loger.clone();
@@ -887,13 +900,24 @@ async fn main() -> anyhow::Result<()> {
 
     // parse_quark_log(1, &RuntimeType::Cquark).unwrap();
     
-    let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/redis.yaml");
-    let res = test_app_lauch_time(2, "redis".to_string(), path, WorkloadType::Redis, RuntimeType::Cquark).await?;
+    // let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/redis.yaml");
+    // let res = test_app_lauch_time(100, "redis".to_string(), path, WorkloadType::Redis, RuntimeType::Baseline).await?;
 
-    my_loger.reset_file_path(LevelFilter::Info, config, File::create("nginx.log").unwrap()).unwrap();
+    // my_loger.reset_file_path(LevelFilter::Info, config, File::create("nginx.log").unwrap()).unwrap();
 
-    let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/ngnix.yaml");
-    let res = test_app_lauch_time(2, "nginx".to_string(), path, WorkloadType::Nginx, RuntimeType::Cquark).await?;
-    // assert!(res == 200);
+    // let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/ngnix.yaml");
+    // let res = test_app_lauch_time(100, "nginx".to_string(), path, WorkloadType::Nginx, RuntimeType::Baseline).await?;
+    // assert!(res == 100);
+
+
+    let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/perf-attestation-report-syscall.yaml");
+    get_attestation_report_syscall_test::test_get_attestation_report_syscall("test-get-report-sycall1".to_string(), path).await.unwrap();
+
+    // let args: Vec<String> = std::env::args().collect();
+
+    // let loop_time = args[1].parse::<i32>().unwrap();
+
+    // kbs_https_clinet::perf_https_attestation_and_provisioning_client("nginx".to_string(), RuntimeType::Cquark, loop_time).await.unwrap();
+
     Ok(())
 }
