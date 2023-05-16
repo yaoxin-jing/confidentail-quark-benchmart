@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: micro
+spec:
+  runtimeClassName: quark
+  containers:
+  - name: mirco
+    # image:  yaoxinjing/micro-bench:latest
+    image:  yaoxinjing/micro-bench-elf-10mb:latest
+    # command: ["/usr/src/app/test_get_report_syscall"]
+    # args: ["10000"]
+    env:
+    - name: APPLICATION_NAME
+      value: "main"
+    - name: SECRET_MANAGER_IP
+      value: "10.221.117.198:8000"
+    - name: SHILED_POLICY_PATH
+      value: "quark_mongo/resource/policy"
+    # - name: FILE_BASED_SECRETS_PATH
+    #   value: "quark_mongo/resource/rootCaPem0,quark_mongo/resource/rootCaPem1,quark_mongo/resource/rootCaPem2,quark_mongo/resource/rootCaPem3,quark_mongo/resource/rootCaPem4,quark_mongo/resource/rootCaPem5,quark_mongo/resource/rootCaPem6,quark_mongo/resource/rootCaPem7,quark_mongo/resource/rootCaPem8,quark_mongo/resource/rootCaPem8,quark_mongo/resource/rootCaPem9,quark_mongo/resource/rootCaPem10,quark_mongo/resource/rootCaPem11,quark_mongo/resource/rootCaPem12,quark_mongo/resource/rootCaPem13,quark_mongo/resource/rootCaPem14,quark_mongo/resource/rootCaPem14,quark_mongo/resource/rootCaPem15,quark_mongo/resource/rootCaPem16"
+    # - name: FILE_BASED_SECRETS_PATH
+    #   value: "files/0"

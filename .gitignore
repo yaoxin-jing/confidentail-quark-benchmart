@@ -4,5 +4,6 @@ benchmark-*
 
 secret/mongo_resource/
 secret/nginx_resource/
+secret/file_resource/
 
 test*
