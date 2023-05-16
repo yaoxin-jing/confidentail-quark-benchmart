@@ -7,8 +7,8 @@ use std::io::Write;
 use std::sync::Mutex;
 use std::sync::Arc;
 use simplelog::WriteLogger;
-
-
+use simplelog::ConfigBuilder;
+use std::fs::File;
 
 
 pub struct MyLoger<W: Write + Send + 'static> {
@@ -107,3 +107,20 @@ impl<W: Write + Send + 'static> SharedLogger for MyLoger<W> {
         Box::new(*self)
     }
 }
+
+
+pub fn reset_log_file(my_logger: &mut MyLoger<File>, file_name: &str) -> anyhow::Result<()> {
+
+
+    let time_format = simplelog::format_description!("[year]:[month]:[day]:[hour]:[minute]:[second].[subsecond]");
+    let config = ConfigBuilder::new()
+    .set_time_format_custom(time_format)
+    .build();
+    my_logger.reset_file_path(log::LevelFilter::Info, config, File::create(file_name).unwrap()).unwrap();
+
+
+    Ok(())
+
+}
+
+
