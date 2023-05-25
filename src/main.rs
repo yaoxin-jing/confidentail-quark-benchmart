@@ -43,6 +43,7 @@ use crate::redis::{RedisStatistic, calculate_redis_result, run_redis_benchmark, 
 use crate::nginx::run_nginx_benchmark;
 use crate::kbs_https_clinet::perf_https_attestation_and_provisioning_client;
 use crate::my_loger::MyLoger;
+use std::process::Output;
 
 const SANDBOX_START: &str = "sandbox start";
 const SANDBOX_EXIT: &str = "sandbox exit";
@@ -278,7 +279,7 @@ pub fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Stat
 
     
     error!("================== Measurement Size STATISTIC ==============================");
-
+    error!("==before ==============================");
     let measurement = statistic_keeper.pods_statistic[0].mesuarement.clone();
     info!("measured_executable_memory_mapping_in_mb_before_app_launch: {:?}", measurement.measured_executable_memory_mapping_in_mb_before_app_launch);
     info!("measured_shared_lib_memory_mapping_in_mb_before_app_launch: {:?}", measurement.measured_shared_lib_memory_mapping_in_mb_before_app_launch);
@@ -286,10 +287,18 @@ pub fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Stat
     info!("measured_stack_in_bytes_before_app_launch: {:?}", measurement.measured_stack_in_bytes_before_app_launch);
     info!("measured_qkernel_args_in_bytes_before_app_launch: {:?}", measurement.measured_qkernel_args_in_bytes_before_app_launch);
 
-
+    error!("==after ==============================");
     info!("measured_executable_memory_mapping_in_mb_after_app_launch: {:?}", measurement.measured_executable_memory_mapping_in_mb_after_app_launch);
     info!("measured_shared_lib_memory_mapping_in_mb_after_app_launch: {:?}", measurement.measured_shared_lib_memory_mapping_in_mb_after_app_launch);
     info!("measured_stack_in_bytes_after_app_launch: {:?}", measurement.measured_stack_in_bytes_after_app_launch);
+
+    error!("==tatol ==============================");
+    info!("tatol_executable_memory_mapping_in_mb: {:?}", measurement.measured_executable_memory_mapping_in_mb_after_app_launch +  measurement.measured_executable_memory_mapping_in_mb_before_app_launch);
+    info!("total_measured_shared_lib_memory_mapping_in_mb: {:?}", measurement.measured_shared_lib_memory_mapping_in_mb_after_app_launch +  measurement.measured_shared_lib_memory_mapping_in_mb_before_app_launch);
+    info!("measured_process_spec_before_app_launch_in_byte: {:?}", measurement.measured_process_spec_before_app_launch_in_byte);
+    info!("measured_stack_in_bytes_before_app_launch: {:?}", measurement.measured_stack_in_bytes_before_app_launch);
+    info!("measured_qkernel_args_in_bytes_before_app_launch: {:?}", measurement.measured_qkernel_args_in_bytes_before_app_launch);
+
 
 
     let measure_qkernel_args_duration_in_us_statistic = get_statistic(&measure_qkernel_args_duration_in_us_before_app_launch).unwrap();
@@ -305,6 +314,7 @@ pub fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Stat
     let measure_process_spec_duration_in_us_after_app_launch_statistic = get_statistic(&measure_process_spec_duration_in_us_after_app_launch).unwrap();
 
     error!("================== Measurement  time STATISTIC ==============================");
+    error!("==before ==============================");
     info!("measure_elf_loadable_segment_duration_in_us_before_app_launch_statistic: {:?}", measure_elf_loadable_segment_duration_in_us_before_app_launch_statistic);
     info!("measure_shared_lib_duration_in_us_before_app_launch_statistic: {:?}", measure_shared_lib_duration_in_us_before_app_launch_statistic);
     info!("measure_process_spec_duration_in_us_before_app_launch_statistic: {:?}", measure_process_spec_duration_in_us_before_app_launch_statistic);
@@ -332,7 +342,7 @@ pub fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Stat
     let total_menasurement_time_in_us_before_app_launch_statistic = get_statistic(&total_measurement_time_before_app_launch).unwrap();
 
     info!("total_menasurement_time_in_us_before_app_launch_statistic: {:?}", total_menasurement_time_in_us_before_app_launch_statistic);
-
+    error!("==after ==============================");
     info!("measure_elf_loadable_segment_duration_in_us_after_app_launch_statistic: {:?}", measure_elf_loadable_segment_duration_in_us_after_app_launch_statistic);
     info!("measure_shared_lib_duration_in_us_after_app_launch_statistic: {:?}", measure_shared_lib_duration_in_us_after_app_launch_statistic);
     info!("measure_stack_duration_in_us_after_app_launch_statistic: {:?}", measure_stack_duration_in_us_after_app_launch_statistic);
@@ -345,7 +355,7 @@ pub fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Stat
     let mut i = 0;
     loop {
 
-        if i >= measure_elf_loadable_segment_duration_in_us_before_app_launch.len() {
+        if i >= measure_elf_loadable_segment_duration_in_us_after_app_launch.len() {
             break;
         }
 
@@ -360,7 +370,37 @@ pub fn calcaulate_statistic_result(statistic_keeper: &std::sync::MutexGuard<Stat
 
     let total_measurement_time_after_app_launch_statistic = get_statistic(&total_measurement_time_after_app_launch).unwrap();
 
-    info!("total_menasurement_time_in_us_after_app_launch_statistic: {:?}", total_measurement_time_after_app_launch_statistic);
+
+    info!("total_measurement_time_after_app_launch_statistic: {:?}", total_measurement_time_after_app_launch_statistic);
+
+
+    let mut tatal_shared_lib_measurement_time =  Vec::new();
+    let mut total_measuretime = Vec::new();
+    let mut i = 0;
+    loop {
+
+        if i >= total_measurement_time_after_app_launch.len() {
+            break;
+        }
+
+        let totol_shared_lib_measurement_time = measure_shared_lib_duration_in_us_after_app_launch[i] + measure_shared_lib_duration_in_us_before_app_launch[i];
+        let total_measure_time = total_measurement_time_after_app_launch[i] + total_measurement_time_before_app_launch[i];
+
+        tatal_shared_lib_measurement_time.push(totol_shared_lib_measurement_time);
+        total_measuretime.push(total_measure_time); 
+        i = i + 1;
+    }
+
+    let total_measurement_shared_lib_time_tatistic = get_statistic(&tatal_shared_lib_measurement_time).unwrap();
+    let total_measurement_time_tatistic = get_statistic(&total_measuretime).unwrap();
+
+    error!("==tatol ==============================");
+    info!("total measure_elf_loadable_segment_duration_in_us: {:?}", measure_elf_loadable_segment_duration_in_us_before_app_launch_statistic);
+    info!("total measure_process_spec_duration_in_us: {:?}", measure_process_spec_duration_in_us_before_app_launch_statistic);
+    info!("total measure_stack_duration_in_us: {:?}", measure_stack_duration_in_us_before_app_launch_statistic);
+    info!("total measure_qkernel_args_duration_in_us_statistic: {:?}", measure_qkernel_args_duration_in_us_statistic);
+    info!("total_measurement_shared_lib_time_tatistic: {:?}", total_measurement_shared_lib_time_tatistic);
+    info!("total_measuretime: {:?}", total_measurement_time_tatistic);
 
 
 
@@ -530,23 +570,16 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
             WorkloadType::Micro(_) => {
             }
         };
-        
+        info!("pod statistic {:?}",   quark_statistic);
         statistic_keeper.pods_statistic.push(quark_statistic);
 
         i = i + 1;
     }
 
     error!("================== Result ==============================");
-
-
-
-
     {
         info!("libaries loaded before application is lauched {:?}", *LIB_MEASURED_BEFORE_APP_LAUNCHED_KEEPER.lock().unwrap());
         info!("libaries loaded during runtime {:?}", *LIB_MEASURED_DURING_RUNTIME_KEEPER.lock().unwrap());
-
-
-
     }
 
     calcaulate_statistic_result(&statistic_keeper, workload_type).unwrap();
@@ -564,9 +597,9 @@ async fn test_app_lauch_time(loop_times: i32, pod_name: String, file_path: std::
 
 
 
-fn execute_cmd(cmd: &str) {
+fn execute_cmd(cmd: &str) -> std::process::Output{
 
-     Command::new("bash")
+    let output = Command::new("bash")
     .args([
         "-c",
         cmd
@@ -574,6 +607,8 @@ fn execute_cmd(cmd: &str) {
     .output()
     .expect(&format!("failed to execute cmd {}", cmd));
 
+
+    output
 }
 
 fn is_application_exit(runtime_type: &RuntimeType) -> anyhow::Result<u128>{
@@ -948,11 +983,45 @@ async fn perf_software_manager(mut my_loger: MyLoger<File>) -> anyhow::Result<()
 }
 
 
+
+async fn perf_kubectl_cmd(mut my_loger: MyLoger<File>) -> anyhow::Result<()> {
+
+    //let cmd_list = vec!["pwd".to_string(),"ps".to_string(), "ls /etc/apt/apt.conf.d".to_string(), "cat /etc/apt/apt.conf.d/01autoremove".to_string(), "cp  /etc/apt/apt.conf.d/01autoremove /usr/src/app/".to_string()];
+
+    let cmd_list = vec!["pwd".to_string(), "ps".to_string(), "ls /etc/apt/apt.conf.d".to_string(), "cat /etc/apt/apt.conf.d/01autoremove".to_string(), "cp  /etc/apt/apt.conf.d/01autoremove /usr/src/app/".to_string()];
+
+    perf_kubectl::perf_securecli_cmd(cmd_list, 2000,  &mut my_loger, &RuntimeType::Cquark).await.unwrap();
+
+    // perf_kubectl::perf_kubectl_cmd(cmd_list, 2000,  &mut my_loger, &RuntimeType::Cquark).await.unwrap();
+    Ok(())
+}
+
+
+
+
+async fn perf_kbs_client_cmd(mut my_loger: MyLoger<File>) -> anyhow::Result<()> {
+
+    kbs_https_clinet::perf_https_attestation_and_provisioning_client(128, 150, &mut my_loger).await.unwrap();
+    
+    kbs_https_clinet::perf_https_attestation_and_provisioning_client(128, 50, &mut my_loger).await.unwrap();
+
+    kbs_https_clinet::perf_https_attestation_and_provisioning_client(64, 50, &mut my_loger).await.unwrap();
+
+    kbs_https_clinet::perf_https_attestation_and_provisioning_client(32, 50, &mut my_loger).await.unwrap();
+
+    kbs_https_clinet::perf_https_attestation_and_provisioning_client(16, 50, &mut my_loger).await.unwrap();
+
+    kbs_https_clinet::perf_https_attestation_and_provisioning_client(0, 50, &mut my_loger).await.unwrap();
+
+    Ok(())
+}
+
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
 
     // tracing_subscriber::fmt::init();
-    setup(RuntimeType::Baseline).unwrap();
+    setup(RuntimeType::Cquark).unwrap();
 
     let time_format = simplelog::format_description!("[year]:[month]:[day]:[hour]:[minute]:[second].[subsecond]");
 
@@ -962,7 +1031,7 @@ async fn main() -> anyhow::Result<()> {
 
 
 
-    let mut my_loger = MyLoger::new(LevelFilter::Info, config.clone(), File::create("setup.log").unwrap());
+    let mut my_loger = MyLoger::new(LevelFilter::Info, config.clone(), File::create("nginx.log").unwrap());
 
 
     let a: MyLoger<File> = my_loger.clone();
@@ -978,33 +1047,20 @@ async fn main() -> anyhow::Result<()> {
     // parse_quark_log(1, &RuntimeType::Cquark).unwrap();
     
     // let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/redis.yaml");
-    // let res = test_app_lauch_time(100, "redis".to_string(), path, WorkloadType::Redis, RuntimeType::Baseline).await?;
+    // let res = test_app_lauch_time(1, "redis".to_string(), path, WorkloadType::Redis, RuntimeType::Cquark).await?;
 
     // my_loger.reset_file_path(LevelFilter::Info, config, File::create("nginx.log").unwrap()).unwrap();
 
     // let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/ngnix.yaml");
-    // let res = test_app_lauch_time(100, "nginx".to_string(), path, WorkloadType::Nginx, RuntimeType::Baseline).await?;
+    // let res = test_app_lauch_time(100, "nginx".to_string(), path, WorkloadType::Nginx, RuntimeType::Cquark).await?;
     // assert!(res == 100);
 
 
     // let path = std::path::PathBuf::from("/home/yaoxin/test/confidentail-quark-benchmart/perf-attestation-report-syscall.yaml");
     // get_attestation_report_syscall_test::test_get_attestation_report_syscall("test-get-report-sycall1".to_string(), path).await.unwrap();
 
-    // let args: Vec<String> = std::env::args().collect();
 
-    // let loop_time = args[1].parse::<i32>().unwrap();
-
-    // kbs_https_clinet::perf_https_attestation_and_provisioning_client(128, 150, &mut my_loger).await.unwrap();
-    
-    // kbs_https_clinet::perf_https_attestation_and_provisioning_client(128, 50, &mut my_loger).await.unwrap();
-
-    // kbs_https_clinet::perf_https_attestation_and_provisioning_client(64, 50, &mut my_loger).await.unwrap();
-
-    // kbs_https_clinet::perf_https_attestation_and_provisioning_client(32, 50, &mut my_loger).await.unwrap();
-
-    // kbs_https_clinet::perf_https_attestation_and_provisioning_client(16, 50, &mut my_loger).await.unwrap();
-
-    // kbs_https_clinet::perf_https_attestation_and_provisioning_client(0, 50, &mut my_loger).await.unwrap();
+    perf_kubectl_cmd(my_loger).await.unwrap();
 
 
 
