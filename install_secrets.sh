@@ -28,7 +28,7 @@ pushd nginx
 for filename in *; do
 cat $filename | base64 | tr -d '\n' > ../nginx_resource/$filename
 done
-cp -R ../nginx_resource  /opt/confidential-containers/kbs/repository/quark_mongo
+cp -R ../nginx_resource  /opt/confidential-containers/kbs/repository/quark_nginx
 popd
 
 
