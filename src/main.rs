@@ -6,6 +6,7 @@ mod my_loger;
 mod get_attestation_report_syscall_test;
 mod mircro_bench_software_manager;
 mod perf_kubectl;
+mod micro_access_ram;
 
 
 #[macro_use]
@@ -44,6 +45,9 @@ use crate::nginx::run_nginx_benchmark;
 use crate::kbs_https_clinet::perf_https_attestation_and_provisioning_client;
 use crate::my_loger::MyLoger;
 use std::process::Output;
+extern crate rev_lines;
+ 
+
 
 const SANDBOX_START: &str = "sandbox start";
 const SANDBOX_EXIT: &str = "sandbox exit";
@@ -988,11 +992,39 @@ async fn perf_kubectl_cmd(mut my_loger: MyLoger<File>) -> anyhow::Result<()> {
 
     //let cmd_list = vec!["pwd".to_string(),"ps".to_string(), "ls /etc/apt/apt.conf.d".to_string(), "cat /etc/apt/apt.conf.d/01autoremove".to_string(), "cp  /etc/apt/apt.conf.d/01autoremove /usr/src/app/".to_string()];
 
-    let cmd_list = vec!["pwd".to_string(), "ps".to_string(), "ls /etc/apt/apt.conf.d".to_string(), "cat /etc/apt/apt.conf.d/01autoremove".to_string(), "cp  /etc/apt/apt.conf.d/01autoremove /usr/src/app/".to_string()];
+    let cmd_list = vec!["pwd".to_string(), "ps".to_string(), "ls /etc/apt/apt.conf.d".to_string(), "cat /etc/apt/apt.conf.d/01autoremove".to_string(),  "cp  /etc/apt/apt.conf.d/01autoremove /usr/src/app/".to_string()];
 
-    perf_kubectl::perf_securecli_cmd(cmd_list, 2000,  &mut my_loger, &RuntimeType::Cquark).await.unwrap();
+    // perf_kubectl::perf_securecli_cmd(cmd_list, 100,  &mut my_loger, &RuntimeType::Cquark).await.unwrap();
 
-    // perf_kubectl::perf_kubectl_cmd(cmd_list, 2000,  &mut my_loger, &RuntimeType::Cquark).await.unwrap();
+    perf_kubectl::perf_kubectl_cmd(cmd_list, 100,  &mut my_loger, &RuntimeType::Baseline).await.unwrap();
+    Ok(())
+}
+
+
+async fn perf_ram(mut my_loger: MyLoger<File>) -> anyhow::Result<()> {
+
+    //let cmd_list = vec!["pwd".to_string(),"ps".to_string(), "ls /etc/apt/apt.conf.d".to_string(), "cat /etc/apt/apt.conf.d/01autoremove".to_string(), "cp  /etc/apt/apt.conf.d/01autoremove /usr/src/app/".to_string()];
+
+
+    // perf_kubectl::perf_securecli_cmd(cmd_list, 100,  &mut my_loger, &RuntimeType::Cquark).await.unwrap();
+
+    // micro_access_ram::perf_ram(5, 30, &mut my_loger, "yaoxinjing/micro-bench-elf-5mb-rw", &RuntimeType::Baseline).await.unwrap();
+    // micro_access_ram::perf_ram(10, 30, &mut my_loger, "yaoxinjing/micro-bench-elf-10mb-rw", &RuntimeType::Baseline).await.unwrap();
+
+    // micro_access_ram::perf_ram(100, 30, &mut my_loger, "yaoxinjing/micro-bench-elf-100mb-rw", &RuntimeType::Baseline).await.unwrap();
+
+    micro_access_ram::perf_ram(5, 20, &mut my_loger, "yaoxinjing/micro-bench-elf-5mb-sw", &RuntimeType::Baseline).await.unwrap();
+    micro_access_ram::perf_ram(10, 20, &mut my_loger, "yaoxinjing/micro-bench-elf-10mb-sw", &RuntimeType::Baseline).await.unwrap();
+
+    micro_access_ram::perf_ram(100, 20, &mut my_loger, "yaoxinjing/micro-bench-elf-100mb-sw", &RuntimeType::Baseline).await.unwrap();
+
+
+    // micro_access_ram::perf_ram(5, 20, &mut my_loger, "yaoxinjing/micro-bench-elf-5mb-sr", &RuntimeType::Cquark).await.unwrap();
+    // micro_access_ram::perf_ram(10, 20, &mut my_loger, "yaoxinjing/micro-bench-elf-10mb-sr", &RuntimeType::Cquark).await.unwrap();
+
+    // micro_access_ram::perf_ram(100, 20, &mut my_loger, "yaoxinjing/micro-bench-elf-100mb-sr", &RuntimeType::Cquark).await.unwrap();
+
+
     Ok(())
 }
 
@@ -1021,7 +1053,7 @@ async fn perf_kbs_client_cmd(mut my_loger: MyLoger<File>) -> anyhow::Result<()> 
 async fn main() -> anyhow::Result<()> {
 
     // tracing_subscriber::fmt::init();
-    setup(RuntimeType::Cquark).unwrap();
+    setup(RuntimeType::Baseline).unwrap();
 
     let time_format = simplelog::format_description!("[year]:[month]:[day]:[hour]:[minute]:[second].[subsecond]");
 
@@ -1060,7 +1092,7 @@ async fn main() -> anyhow::Result<()> {
     // get_attestation_report_syscall_test::test_get_attestation_report_syscall("test-get-report-sycall1".to_string(), path).await.unwrap();
 
 
-    perf_kubectl_cmd(my_loger).await.unwrap();
+    perf_ram(my_loger).await.unwrap();
 
 
 

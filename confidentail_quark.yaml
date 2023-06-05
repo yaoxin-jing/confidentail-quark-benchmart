@@ -1,0 +1,65 @@
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: micro-cquark
+spec:
+  runtimeClassName: quark
+  containers:
+  - name: mirco
+    image: yaoxinjing/qualitative_analyse:latest
+    env:
+    - name: APPLICATION_NAME
+      value: "qualitative-any"
+    - name: SECRET_MANAGER_IP
+      value: "10.221.117.198:8000"
+    - name: CMD_ENV_BASED_SECRETS_PATH
+      value: "quark_nginx/nginx_resource/envCmd"
+    - name: SHILED_POLICY_PATH
+      value: "quark_nginx/nginx_resource/policy"
+    - name: FILE_BASED_SECRETS_PATH
+      value: "quark_mongo/mongo_resource/rootCaPem"
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+# apiVersion: v1
+# kind: Pod
+# metadata:
+#   name: micro
+# spec:
+#   runtimeClassName: quark
+#   containers:
+#   - name: mirco
+#     # image:  yaoxinjing/micro-bench-pasue:latest
+#     # image:  yaoxinjing/micro-bench-elf-100mb-rr:latest
+#     # command: ["/usr/src/app/test_get_report_syscall"] yaoxinjing/kbs
+#     image: yaoxinjing/qualitative_analyse:latest
+#     # image: busybox
+#     # stdin: true 
+#     # tty: true  
+#     # args: ["10000"]
+#     env:
+#     - name: APPLICATION_NAME
+#       value: "qualitative-any"
+#       # value: "sh"
+#     - name: SECRET_MANAGER_IP
+#       value: "10.221.117.198:8000"
+#     - name: SHILED_POLICY_PATH
+#       value: "quark_nginx/nginx_resource/policy"
+#     - name: FILE_BASED_SECRETS_PATH
+#       value: "quark_mongo/mongo_resource/rootCaPem"
+

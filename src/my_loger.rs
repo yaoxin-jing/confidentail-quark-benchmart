@@ -111,7 +111,7 @@ impl<W: Write + Send + 'static> SharedLogger for MyLoger<W> {
 
 pub fn reset_log_file(my_logger: &mut MyLoger<File>, file_name: &str) -> anyhow::Result<()> {
 
-
+    info!("reset_log_file {:?}", file_name);
     let time_format = simplelog::format_description!("[year]:[month]:[day]:[hour]:[minute]:[second].[subsecond]");
     let config = ConfigBuilder::new()
     .set_time_format_custom(time_format)

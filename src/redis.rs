@@ -186,6 +186,24 @@ pub fn calculate_redis_result(statistic_keeper: &std::sync::MutexGuard<Statistic
     let mset_statistic = get_statistic(&mset).unwrap();
     let geo_mean_statistic = get_statistic(&geo_mean).unwrap();
 
+    info!("ping_inline : {:?}", ping_inline);
+    info!("ping_bulk : {:?}", ping_bulk);
+    info!("set : {:?}", set);
+    info!("get : {:?}", get);
+    info!("incr : {:?}", incr);
+    info!("lpush : {:?}", lpush);
+    info!("rpush : {:?}", rpush);
+    info!("lpop : {:?}", lpop);
+    info!("rpop : {:?}", rpop);
+    info!("sadd : {:?}", sadd);
+    info!("hset : {:?}", hset);
+    info!("spop : {:?}", spop);
+    info!("mset : {:?}", mset);
+    info!("geo_mean : {:?}", geo_mean);
+
+
+
+    info!("========= redis statistic===================");
 
     info!("ping_inline_statistic : {:?}", ping_inline_statistic);
     info!("ping_bulk_statistic : {:?}", ping_bulk_statistic);
@@ -251,7 +269,7 @@ pub async fn run_redis_benchmark(pod_ip: String, pod_name: &str) ->  anyhow::Res
     wait_for_redis_to_run(pod_name, 5).await?;
 
     // Compile code. | grep 'per second'
-    let cmd = format!("redis-benchmark -h {} -p 6379 -n 100000 -c 100 --csv", pod_ip);
+    let cmd = format!("redis-benchmark -h {} -p 6379 -n 500000 -c 200 --csv", pod_ip);
 
     info!("the redis cmd {}", cmd);
 

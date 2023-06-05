@@ -2,6 +2,8 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: nginx
+  labels:
+    app: nginx
 spec:
   runtimeClassName: quark
   volumes:
@@ -27,6 +29,8 @@ spec:
       #   value: "quark_nginx/nginx_resource/mongodConf,quark_nginx/nginx_resource/rootCaPem,quark_nginx/nginx_resource/mongodbPem"
       - name: SHILED_POLICY_PATH
         value: "quark_nginx/nginx_resource/policy"
+      - name: FILE_BASED_SECRETS_PATH
+        value: "quark_mongo/mongo_resource/rootCaPem"
     volumeMounts:
       - name: mysite-configs
         mountPath: /etc/nginx/conf.d
