@@ -4,6 +4,10 @@ kind: Pod
 metadata:
   name: micro-cquark
 spec:
+  volumes:
+    - name: sm-certificate
+      secret:
+        secretName: sm-certificate
   runtimeClassName: quark
   containers:
   - name: mirco
@@ -19,6 +23,9 @@ spec:
       value: "quark_nginx/nginx_resource/policy"
     - name: FILE_BASED_SECRETS_PATH
       value: "quark_mongo/mongo_resource/rootCaPem"
+    volumeMounts:
+    - name: sm-certificate
+      mountPath: /usr/local
 
 
     
