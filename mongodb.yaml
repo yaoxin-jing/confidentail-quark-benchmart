@@ -15,13 +15,13 @@ spec:
     - name: APPLICATION_NAME
       value: "mongod"
     - name: SECRET_MANAGER_IP
-      value: "10.206.133.76:8000"
+      value: "10.221.117.198:8000"
     - name: CMD_ENV_BASED_SECRETS_PATH
       value: "quark_mongo/resource/envCmd"
     - name: FILE_BASED_SECRETS_PATH
       value: "quark_mongo/resource/mongodConf,quark_mongo/resource/rootCaPem,quark_mongo/resource/mongodbPem"
     - name: SHILED_POLICY_PATH
-      value: "quark_mongo/resource/policy"
+      value: "quark_nginx/nginx_resource/policy"
     resources:
       requests:
         cpu: 100m
