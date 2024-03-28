@@ -18,13 +18,13 @@ spec:
     - name: APPLICATION_NAME
       value: "qualitative-any"
     - name: SECRET_MANAGER_IP
-      value: "10.221.117.198:8000"
+      value: "141.76.44.150:7555"
     - name: CMD_ENV_BASED_SECRETS_PATH
       value: "quark_nginx/nginx_resource/envCmd"
     - name: SHILED_POLICY_PATH
       value: "quark_nginx/nginx_resource/policy"
     - name: FILE_BASED_SECRETS_PATH
-      value: "quark_mongo/mongo_resource/rootCaPem"
+      value: "quark_nginx/nginx_resource/rootCaPem"
     volumeMounts:
     - name: sm-certificate
       mountPath: /usr/local
