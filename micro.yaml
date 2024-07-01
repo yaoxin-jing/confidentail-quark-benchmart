@@ -9,7 +9,7 @@ spec:
     # image:  yaoxinjing/micro-bench:latest
     image:  yaoxinjing/micro-bench-elf-10mb:latest
     # command: ["/usr/src/app/test_get_report_syscall"]
-    # args: ["10000"]
+    # args: ["100"]
     env:
     - name: APPLICATION_NAME
       value: "main"

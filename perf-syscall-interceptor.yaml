@@ -15,7 +15,7 @@ spec:
     - name: SECRET_MANAGER_IP
       value: "10.221.117.198:8000"
     - name: SHILED_POLICY_PATH
-      value: "quark_mongo/mongo_resource/policy"
+      value: "quark_nginx/nginx_resource/policy"
     resources:
       requests:
         cpu: 100m
